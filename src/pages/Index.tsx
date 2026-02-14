@@ -1,14 +1,18 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useAuth } from "@/contexts/AuthContext";
+import { Navigate } from "react-router-dom";
+import AppLayout from "@/components/layout/AppLayout";
+import StudentHome from "@/components/home/StudentHome";
+import AdminHome from "@/components/home/AdminHome";
+import TeacherHome from "@/components/home/TeacherHome";
 
-const Index = () => {
+export default function Index() {
+  const { user, isAdmin, isTeacher } = useAuth();
+
+  if (!user) return <Navigate to="/auth" replace />;
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
-    </div>
+    <AppLayout>
+      {isAdmin ? <AdminHome /> : isTeacher ? <TeacherHome /> : <StudentHome />}
+    </AppLayout>
   );
-};
-
-export default Index;
+}
