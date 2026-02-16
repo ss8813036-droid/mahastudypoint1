@@ -41,7 +41,7 @@ export default function AdminCourses() {
         semester: semester ? parseInt(semester) : null,
         subject: subject.trim() || null,
         price: parseFloat(price) || 0,
-        validity_days: validity ? parseInt(validity) : null,
+        validity_days: validity && validity !== "lifetime" ? parseInt(validity) : null,
         created_by: user!.id,
       });
       if (error) throw error;
@@ -119,7 +119,7 @@ export default function AdminCourses() {
                   <SelectItem value="30">30 Days</SelectItem>
                   <SelectItem value="90">90 Days</SelectItem>
                   <SelectItem value="365">1 Year</SelectItem>
-                  <SelectItem value="">Lifetime</SelectItem>
+                  <SelectItem value="lifetime">Lifetime</SelectItem>
                 </SelectContent>
               </Select>
             </div>
