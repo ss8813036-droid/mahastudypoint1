@@ -5,7 +5,56 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
 @layer base {
-  :root {
+  /* Light Mode (Default) */
+  :root, .light {
+    --background: 220 20% 97%;
+    --foreground: 224 30% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 30% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 30% 15%;
+
+    --primary: 217 91% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 92%;
+    --secondary-foreground: 224 30% 15%;
+
+    --muted: 220 14% 94%;
+    --muted-foreground: 220 10% 46%;
+
+    --accent: 220 14% 92%;
+    --accent-foreground: 224 30% 15%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 87%;
+    --input: 220 13% 87%;
+    --ring: 217 91% 55%;
+
+    --radius: 0.75rem;
+
+    --galaxy-glow: 217 91% 55%;
+    --galaxy-purple: 265 80% 55%;
+    --galaxy-cyan: 190 90% 40%;
+    --success: 142 71% 40%;
+    --warning: 38 92% 50%;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 224 30% 15%;
+    --sidebar-primary: 217 91% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 94%;
+    --sidebar-accent-foreground: 224 30% 15%;
+    --sidebar-border: 220 13% 87%;
+    --sidebar-ring: 217 91% 55%;
+  }
+
+  /* Dark Mode (Galaxy Theme) */
+  .dark {
     --background: 230 25% 7%;
     --foreground: 210 40% 96%;
 
@@ -59,7 +108,7 @@
   }
 
   body {
-    @apply bg-background text-foreground font-body antialiased;
+    @apply bg-background text-foreground font-body antialiased transition-colors duration-300;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -69,6 +118,13 @@
 
 @layer utilities {
   .galaxy-gradient {
+    background: radial-gradient(ellipse at 20% 50%, hsl(var(--galaxy-purple) / 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, hsl(var(--primary) / 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 80%, hsl(var(--galaxy-cyan) / 0.04) 0%, transparent 50%),
+                hsl(var(--background));
+  }
+
+  .dark .galaxy-gradient {
     background: radial-gradient(ellipse at 20% 50%, hsl(var(--galaxy-purple) / 0.15) 0%, transparent 50%),
                 radial-gradient(ellipse at 80% 20%, hsl(var(--primary) / 0.1) 0%, transparent 50%),
                 radial-gradient(ellipse at 50% 80%, hsl(var(--galaxy-cyan) / 0.08) 0%, transparent 50%),
@@ -76,7 +132,11 @@
   }
 
   .glass-card {
-    @apply bg-card/60 backdrop-blur-xl border border-border/50;
+    @apply bg-card/80 backdrop-blur-xl border border-border/50;
+  }
+
+  .dark .glass-card {
+    @apply bg-card/60;
   }
 
   .glow-border {
@@ -104,10 +164,14 @@
   .watermark-text {
     position: absolute;
     font-size: 2rem;
-    color: rgba(255, 255, 255, 0.08);
+    color: rgba(128, 128, 128, 0.1);
     white-space: nowrap;
     transform: rotate(-35deg);
     font-weight: 700;
     letter-spacing: 0.1em;
+  }
+
+  .dark .watermark-text {
+    color: rgba(255, 255, 255, 0.08);
   }
 }
