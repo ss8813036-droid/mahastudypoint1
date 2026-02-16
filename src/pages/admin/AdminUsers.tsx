@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Navigate, Link } from "react-router-dom";
-import { ArrowLeft, Check, X, Shield } from "lucide-react";
+import { ArrowLeft, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminUsers() {
@@ -18,8 +18,21 @@ export default function AdminUsers() {
   const { data: users } = useQuery({
     queryKey: ["admin-users"],
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("*, user_roles(role)");
-      return data || [];
+      const { data: profiles } = await supabase.from("profiles").select("*");
+      if (!profiles) return [];
+
+      // Fetch all roles separately
+      const userIds = profiles.map((p) => p.user_id);
+      const { data: allRoles } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("user_id", userIds);
+
+      // Merge roles into profiles
+      return profiles.map((p) => ({
+        ...p,
+        roles: (allRoles || []).filter((r) => r.user_id === p.user_id).map((r) => r.role),
+      }));
     },
   });
 
@@ -56,8 +69,9 @@ export default function AdminUsers() {
         </div>
         <div className="space-y-3">
           {users?.map((u: any) => {
-            const roles = u.user_roles?.map((r: any) => r.role) || [];
+            const roles: string[] = u.roles || [];
             const hasTeacher = roles.includes("teacher");
+            const primaryRole = roles.includes("admin") ? "admin" : hasTeacher ? "teacher" : "student";
             return (
               <Card key={u.id} className="glass-card">
                 <CardContent className="p-4 space-y-3">
@@ -73,7 +87,7 @@ export default function AdminUsers() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Select defaultValue={hasTeacher ? "teacher" : roles.includes("admin") ? "admin" : "student"}
+                    <Select defaultValue={primaryRole}
                       onValueChange={(role) => changeRole.mutate({ userId: u.user_id, role })}>
                       <SelectTrigger className="h-8 text-xs bg-muted/50"><SelectValue /></SelectTrigger>
                       <SelectContent>

@@ -23,8 +23,23 @@ export default function AdminEnrollments() {
   const { data: enrollments } = useQuery({
     queryKey: ["admin-enrollments"],
     queryFn: async () => {
-      const { data } = await supabase.from("enrollments").select("*, courses(title), profiles:user_id(full_name)");
-      return data || [];
+      const { data: enrollData } = await supabase.from("enrollments").select("*, courses(title)");
+      if (!enrollData) return [];
+
+      // Fetch user names separately
+      const userIds = [...new Set(enrollData.map((e) => e.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", userIds);
+
+      const profileMap: Record<string, string> = {};
+      profiles?.forEach((p) => { profileMap[p.user_id] = p.full_name; });
+
+      return enrollData.map((e) => ({
+        ...e,
+        user_name: profileMap[e.user_id] || "Unknown",
+      }));
     },
   });
 
@@ -53,6 +68,8 @@ export default function AdminEnrollments() {
       queryClient.invalidateQueries({ queryKey: ["admin-enrollments"] });
       toast.success("Access granted!");
       setShowGrant(false);
+      setSelectedUser("");
+      setSelectedCourse("");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -83,7 +100,7 @@ export default function AdminEnrollments() {
             <Card key={e.id} className="glass-card">
               <CardContent className="p-3 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold">{e.profiles?.full_name || "User"}</p>
+                  <p className="text-sm font-semibold">{e.user_name}</p>
                   <p className="text-[10px] text-muted-foreground">{e.courses?.title}</p>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => removeAccess.mutate(e.id)}>

@@ -40,21 +40,31 @@ export default function AdminSettings() {
 
   const saveSetting = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: string }) => {
-      await supabase.from("app_settings").update({ value }).eq("key", key);
+      // Use upsert to handle both existing and new settings
+      const { error } = await supabase
+        .from("app_settings")
+        .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-settings"] });
-      toast.success("Saved!");
     },
   });
 
   if (!isAdmin) return <Navigate to="/" replace />;
 
-  const saveAll = () => {
-    saveSetting.mutate({ key: "whatsapp_number", value: whatsappNumber });
-    saveSetting.mutate({ key: "whatsapp_message_template", value: whatsappTemplate });
-    saveSetting.mutate({ key: "whatsapp_enabled", value: whatsappEnabled ? "true" : "false" });
-    saveSetting.mutate({ key: "maintenance_mode", value: maintenanceMode ? "true" : "false" });
+  const saveAll = async () => {
+    try {
+      await Promise.all([
+        saveSetting.mutateAsync({ key: "whatsapp_number", value: whatsappNumber }),
+        saveSetting.mutateAsync({ key: "whatsapp_message_template", value: whatsappTemplate }),
+        saveSetting.mutateAsync({ key: "whatsapp_enabled", value: whatsappEnabled ? "true" : "false" }),
+        saveSetting.mutateAsync({ key: "maintenance_mode", value: maintenanceMode ? "true" : "false" }),
+      ]);
+      toast.success("All settings saved!");
+    } catch (e: any) {
+      toast.error(e.message);
+    }
   };
 
   return (
