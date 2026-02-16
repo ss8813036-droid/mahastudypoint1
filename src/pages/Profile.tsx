@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { Navigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,11 +11,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { signOut } from "@/lib/auth";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { LogOut, User, Mail, GraduationCap, Shield } from "lucide-react";
+import { LogOut, User, Mail, GraduationCap, Shield, Sun, Moon, Monitor } from "lucide-react";
 import logo from "@/assets/logo.jpg";
 
 export default function Profile() {
   const { user, profile, roles, isAdmin, refreshProfile } = useAuth();
+  const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [fullName, setFullName] = useState(profile?.full_name || "");
@@ -101,6 +103,32 @@ export default function Profile() {
                 <div className="flex items-center gap-2"><Shield className="w-4 h-4 text-muted-foreground" /><span className="capitalize">{roles.join(", ")}</span></div>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-3">
+            <h2 className="text-sm font-display font-semibold">Theme Settings</h2>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { value: "light" as const, icon: Sun, label: "Light" },
+                { value: "dark" as const, icon: Moon, label: "Dark" },
+                { value: "system" as const, icon: Monitor, label: "System" },
+              ]).map(({ value, icon: Icon, label }) => (
+                <button
+                  key={value}
+                  onClick={() => setTheme(value)}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all ${
+                    theme === value
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-muted/30 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span className="text-xs font-medium">{label}</span>
+                </button>
+              ))}
+            </div>
           </CardContent>
         </Card>
 

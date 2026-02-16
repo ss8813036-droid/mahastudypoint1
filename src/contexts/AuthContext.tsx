@@ -13,6 +13,7 @@ interface Profile {
   semester: number | null;
   branch: string | null;
   is_approved: boolean;
+  theme_preference: string;
 }
 
 interface AuthContextType {
