@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Navigate, Link } from "react-router-dom";
-import { ArrowLeft, Plus, BookOpen, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Plus, BookOpen, Eye, EyeOff, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminCourses() {
@@ -65,6 +65,18 @@ export default function AdminCourses() {
     },
   });
 
+  const deleteCourse = useMutation({
+    mutationFn: async (courseId: string) => {
+      const { error } = await supabase.from("courses").delete().eq("id", courseId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-courses"] });
+      toast.success("Course deleted!");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   return (
     <AppLayout showNav={false}>
       <div className="p-4 space-y-4">
@@ -80,17 +92,22 @@ export default function AdminCourses() {
           {courses?.map((c: any) => (
             <Card key={c.id} className="glass-card">
               <CardContent className="p-4 flex items-center gap-3">
-                {c.thumbnail_url ? (
-                  <img src={c.thumbnail_url} alt="" className="w-14 h-14 rounded-lg object-cover" />
-                ) : (
-                  <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center"><BookOpen className="w-6 h-6 text-muted-foreground" /></div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm truncate">{c.title}</p>
-                  <p className="text-[10px] text-muted-foreground">Sem {c.semester} · {c.subject} · ₹{c.price}</p>
-                </div>
+                <Link to={`/admin/courses/${c.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                  {c.thumbnail_url ? (
+                    <img src={c.thumbnail_url} alt="" className="w-14 h-14 rounded-lg object-cover" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center"><BookOpen className="w-6 h-6 text-muted-foreground" /></div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm truncate">{c.title}</p>
+                    <p className="text-[10px] text-muted-foreground">Sem {c.semester} · {c.subject} · ₹{c.price}</p>
+                  </div>
+                </Link>
                 <Button variant="ghost" size="icon" onClick={() => toggleLaunch.mutate({ id: c.id, launched: !c.is_launched })}>
                   {c.is_launched ? <Eye className="w-4 h-4 text-success" /> : <EyeOff className="w-4 h-4 text-muted-foreground" />}
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => { if (confirm("Delete this course?")) deleteCourse.mutate(c.id); }}>
+                  <Trash2 className="w-4 h-4 text-destructive" />
                 </Button>
               </CardContent>
             </Card>

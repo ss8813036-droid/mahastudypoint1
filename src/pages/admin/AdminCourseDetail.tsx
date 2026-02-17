@@ -1,0 +1,345 @@
+import { useState, useRef } from "react";
+import { useParams, Navigate, Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import AppLayout from "@/components/layout/AppLayout";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ArrowLeft, Plus, Folder, FileText, Image, Upload, Trash2, Edit2 } from "lucide-react";
+import { toast } from "sonner";
+
+export default function AdminCourseDetail() {
+  const { id } = useParams<{ id: string }>();
+  const { isAdmin, user } = useAuth();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [showAddFolder, setShowAddFolder] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [folderName, setFolderName] = useState("");
+  const [parentFolderId, setParentFolderId] = useState<string | null>(null);
+  const [uploadName, setUploadName] = useState("");
+  const [uploadType, setUploadType] = useState<"pdf" | "image">("pdf");
+  const [uploadFolderId, setUploadFolderId] = useState<string>("root");
+  const [accessType, setAccessType] = useState<"free" | "paid">("paid");
+  const [addWatermark, setAddWatermark] = useState(true);
+  const [allowDownload, setAllowDownload] = useState(false);
+  const [unitName, setUnitName] = useState("");
+  const [chapterName, setChapterName] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  if (!isAdmin) return <Navigate to="/" replace />;
+
+  const { data: course } = useQuery({
+    queryKey: ["admin-course", id],
+    queryFn: async () => {
+      const { data } = await supabase.from("courses").select("*").eq("id", id!).single();
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: folders } = useQuery({
+    queryKey: ["admin-folders", id],
+    queryFn: async () => {
+      const { data } = await supabase.from("folders").select("*").eq("course_id", id!).order("sort_order");
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  const { data: content } = useQuery({
+    queryKey: ["admin-content", id],
+    queryFn: async () => {
+      const { data } = await supabase.from("content").select("*").eq("course_id", id!).order("sort_order");
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  const createFolder = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("folders").insert({
+        name: folderName.trim(),
+        course_id: id!,
+        parent_id: parentFolderId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-folders", id] });
+      toast.success("Folder created!");
+      setShowAddFolder(false);
+      setFolderName("");
+      setParentFolderId(null);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const deleteFolder = useMutation({
+    mutationFn: async (folderId: string) => {
+      await supabase.from("folders").delete().eq("id", folderId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-folders", id] });
+      toast.success("Folder deleted");
+    },
+  });
+
+  const deleteContent = useMutation({
+    mutationFn: async (contentId: string) => {
+      await supabase.from("content").delete().eq("id", contentId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-content", id] });
+      toast.success("Content deleted");
+    },
+  });
+
+  const handleUpload = async () => {
+    if (!selectedFile || !uploadName.trim()) return;
+    setUploading(true);
+    try {
+      const ext = selectedFile.name.split(".").pop();
+      const filePath = `${id}/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("content").upload(filePath, selectedFile);
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from("content").getPublicUrl(filePath);
+
+      const { error } = await supabase.from("content").insert({
+        name: uploadName.trim(),
+        course_id: id!,
+        folder_id: uploadFolderId === "root" ? null : uploadFolderId,
+        content_type: uploadType,
+        file_url: publicUrl,
+        file_size: selectedFile.size,
+        access_type: accessType,
+        add_watermark: addWatermark,
+        allow_download: allowDownload,
+        unit_name: unitName.trim() || null,
+        chapter_name: chapterName.trim() || null,
+        created_by: user!.id,
+      });
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["admin-content", id] });
+      toast.success("Content uploaded!");
+      setShowUpload(false);
+      resetUploadForm();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setUploading(false);
+  };
+
+  const resetUploadForm = () => {
+    setUploadName("");
+    setSelectedFile(null);
+    setUploadType("pdf");
+    setUploadFolderId("root");
+    setAccessType("paid");
+    setAddWatermark(true);
+    setAllowDownload(false);
+    setUnitName("");
+    setChapterName("");
+  };
+
+  const rootFolders = folders?.filter((f) => !f.parent_id) || [];
+  const rootContent = content?.filter((c) => !c.folder_id) || [];
+
+  const formatSize = (bytes: number | null) => {
+    if (!bytes) return "";
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  if (!course) return <AppLayout showNav={false}><div className="p-4 text-center text-muted-foreground">Loading...</div></AppLayout>;
+
+  return (
+    <AppLayout showNav={false}>
+      <div className="p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link to="/admin/courses" className="p-2 rounded-full glass-card"><ArrowLeft className="w-4 h-4" /></Link>
+            <div>
+              <h1 className="text-lg font-display font-bold truncate max-w-[200px]">{course.title}</h1>
+              <p className="text-[10px] text-muted-foreground">Sem {course.semester} · {course.subject} · ₹{course.price}</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setShowAddFolder(true)} className="gap-1"><Folder className="w-3 h-3" />Folder</Button>
+            <Button size="sm" onClick={() => setShowUpload(true)} className="gap-1"><Upload className="w-3 h-3" />Upload</Button>
+          </div>
+        </div>
+
+        {/* Folders */}
+        {rootFolders.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-sm font-display font-semibold">Folders</h2>
+            {rootFolders.map((f: any) => {
+              const subfolders = folders?.filter((sf) => sf.parent_id === f.id) || [];
+              const folderContent = content?.filter((c) => c.folder_id === f.id) || [];
+              return (
+                <Card key={f.id} className="glass-card">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-3">
+                      <Folder className="w-5 h-5 text-primary" />
+                      <span className="flex-1 text-sm font-medium">{f.name}</span>
+                      <span className="text-[10px] text-muted-foreground">{subfolders.length + folderContent.length} items</span>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteFolder.mutate(f.id)}>
+                        <Trash2 className="w-3 h-3 text-destructive" />
+                      </Button>
+                    </div>
+                    {folderContent.length > 0 && (
+                      <div className="mt-2 ml-8 space-y-1">
+                        {folderContent.map((c: any) => (
+                          <div key={c.id} className="flex items-center gap-2 text-xs">
+                            {c.content_type === "pdf" ? <FileText className="w-3 h-3 text-destructive" /> : <Image className="w-3 h-3 text-primary" />}
+                            <span className="flex-1 truncate">{c.name}</span>
+                            <span className="text-muted-foreground">{formatSize(c.file_size)}</span>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteContent.mutate(c.id)}>
+                              <Trash2 className="w-3 h-3 text-destructive" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </section>
+        )}
+
+        {/* Root Content */}
+        {rootContent.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-sm font-display font-semibold">Content</h2>
+            {rootContent.map((c: any) => (
+              <Card key={c.id} className="glass-card">
+                <CardContent className="p-3 flex items-center gap-3">
+                  {c.content_type === "pdf" ? <FileText className="w-5 h-5 text-destructive" /> : <Image className="w-5 h-5 text-primary" />}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{c.name}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {c.access_type} · {formatSize(c.file_size)} · {c.add_watermark ? "Watermark" : "No WM"}
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteContent.mutate(c.id)}>
+                    <Trash2 className="w-3 h-3 text-destructive" />
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </section>
+        )}
+
+        {rootFolders.length === 0 && rootContent.length === 0 && (
+          <div className="text-center py-12 text-muted-foreground text-sm">
+            <p>No content yet. Create folders and upload content to get started.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Add Folder Dialog */}
+      <Dialog open={showAddFolder} onOpenChange={setShowAddFolder}>
+        <DialogContent className="glass-card border-border/50 max-w-sm">
+          <DialogHeader><DialogTitle className="font-display">Create Folder</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <Input value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder="Folder Name" className="bg-muted/50" maxLength={100} />
+            <Select value={parentFolderId || "root"} onValueChange={(v) => setParentFolderId(v === "root" ? null : v)}>
+              <SelectTrigger className="bg-muted/50"><SelectValue placeholder="Parent Folder" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="root">Root (No Parent)</SelectItem>
+                {folders?.filter((f) => !f.parent_id).map((f: any) => (
+                  <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button className="w-full" onClick={() => createFolder.mutate()} disabled={!folderName.trim()}>Create Folder</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload Content Dialog */}
+      <Dialog open={showUpload} onOpenChange={setShowUpload}>
+        <DialogContent className="glass-card border-border/50 max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle className="font-display">Upload Content</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <Input value={uploadName} onChange={(e) => setUploadName(e.target.value)} placeholder="Content Title" className="bg-muted/50" maxLength={200} />
+            <div className="grid grid-cols-2 gap-2">
+              <Select value={uploadType} onValueChange={(v) => setUploadType(v as "pdf" | "image")}>
+                <SelectTrigger className="bg-muted/50"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pdf">PDF</SelectItem>
+                  <SelectItem value="image">Image</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={uploadFolderId} onValueChange={setUploadFolderId}>
+                <SelectTrigger className="bg-muted/50"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="root">Root</SelectItem>
+                  {folders?.map((f: any) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Input value={unitName} onChange={(e) => setUnitName(e.target.value)} placeholder="Unit Name" className="bg-muted/50" maxLength={100} />
+              <Input value={chapterName} onChange={(e) => setChapterName(e.target.value)} placeholder="Chapter Name" className="bg-muted/50" maxLength={100} />
+            </div>
+            <Select value={accessType} onValueChange={(v) => setAccessType(v as "free" | "paid")}>
+              <SelectTrigger className="bg-muted/50"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="free">Free</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Add Watermark</span>
+              <Switch checked={addWatermark} onCheckedChange={setAddWatermark} />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Allow Download</span>
+              <Switch checked={allowDownload} onCheckedChange={setAllowDownload} />
+            </div>
+
+            <div
+              className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {selectedFile ? (
+                <div>
+                  <p className="text-sm font-medium truncate">{selectedFile.name}</p>
+                  <p className="text-xs text-muted-foreground">{formatSize(selectedFile.size)}</p>
+                </div>
+              ) : (
+                <div>
+                  <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Tap to select file</p>
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept={uploadType === "pdf" ? ".pdf" : "image/*"}
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              />
+            </div>
+
+            <Button className="w-full" onClick={handleUpload} disabled={uploading || !selectedFile || !uploadName.trim()}>
+              {uploading ? "Uploading..." : "Upload Content"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </AppLayout>
+  );
+}
