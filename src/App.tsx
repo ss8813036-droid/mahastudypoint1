@@ -19,6 +19,8 @@ import AdminTokens from "./pages/admin/AdminTokens";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminAnalytics from "./pages/admin/AdminAnalytics";
 import AdminEnrollments from "./pages/admin/AdminEnrollments";
+import AdminCourseDetail from "./pages/admin/AdminCourseDetail";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,7 +44,9 @@ const App = () => (
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="/admin/courses" element={<AdminCourses />} />
+              <Route path="/admin/courses/:id" element={<AdminCourseDetail />} />
               <Route path="/admin/tokens" element={<AdminTokens />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/admin/settings" element={<AdminSettings />} />
               <Route path="/admin/analytics" element={<AdminAnalytics />} />
               <Route path="/admin/enrollments" element={<AdminEnrollments />} />
