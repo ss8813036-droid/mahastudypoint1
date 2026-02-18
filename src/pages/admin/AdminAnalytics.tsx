@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Navigate, Link } from "react-router-dom";
-import { ArrowLeft, Users, BookOpen, Key, Eye } from "lucide-react";
+import { ArrowLeft, Users, BookOpen, Key, Eye, DollarSign, FolderOpen } from "lucide-react";
 
 export default function AdminAnalytics() {
   const { isAdmin } = useAuth();
@@ -14,14 +14,26 @@ export default function AdminAnalytics() {
   const { data } = useQuery({
     queryKey: ["admin-analytics"],
     queryFn: async () => {
-      const [users, courses, tokens, usedTokens, enrollments, views] = await Promise.all([
+      const [users, courses, tokens, usedTokens, enrollments, views, content] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true }),
         supabase.from("courses").select("id", { count: "exact", head: true }),
         supabase.from("tokens").select("id", { count: "exact", head: true }),
         supabase.from("tokens").select("id", { count: "exact", head: true }).eq("is_used", true),
         supabase.from("enrollments").select("id", { count: "exact", head: true }),
         supabase.from("content_views").select("id", { count: "exact", head: true }),
+        supabase.from("content").select("id", { count: "exact", head: true }),
       ]);
+
+      // Calculate revenue from enrollments with course prices
+      const { data: enrollData } = await supabase.from("enrollments").select("course_id");
+      const { data: courseData } = await supabase.from("courses").select("id, price");
+      let revenue = 0;
+      if (enrollData && courseData) {
+        const priceMap: Record<string, number> = {};
+        courseData.forEach((c: any) => { priceMap[c.id] = c.price || 0; });
+        enrollData.forEach((e: any) => { revenue += priceMap[e.course_id] || 0; });
+      }
+
       return {
         users: users.count || 0,
         courses: courses.count || 0,
@@ -29,6 +41,8 @@ export default function AdminAnalytics() {
         usedTokens: usedTokens.count || 0,
         enrollments: enrollments.count || 0,
         views: views.count || 0,
+        content: content.count || 0,
+        revenue,
       };
     },
   });
@@ -36,10 +50,12 @@ export default function AdminAnalytics() {
   const stats = [
     { icon: Users, label: "Total Users", value: data?.users, color: "text-primary" },
     { icon: BookOpen, label: "Courses", value: data?.courses, color: "text-galaxy-cyan" },
-    { icon: Key, label: "Total Tokens", value: data?.tokens, color: "text-warning" },
-    { icon: Key, label: "Used Tokens", value: data?.usedTokens, color: "text-success" },
+    { icon: DollarSign, label: "Est. Revenue", value: data?.revenue != null ? `₹${data.revenue}` : undefined, color: "text-success" },
     { icon: Users, label: "Enrollments", value: data?.enrollments, color: "text-galaxy-purple" },
-    { icon: Eye, label: "Content Views", value: data?.views, color: "text-primary" },
+    { icon: Key, label: "Total Tokens", value: data?.tokens, color: "text-warning" },
+    { icon: Key, label: "Used Tokens", value: data?.usedTokens, color: "text-primary" },
+    { icon: Eye, label: "Content Views", value: data?.views, color: "text-galaxy-cyan" },
+    { icon: FolderOpen, label: "Total Content", value: data?.content, color: "text-muted-foreground" },
   ];
 
   return (

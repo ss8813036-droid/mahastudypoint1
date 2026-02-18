@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Users, BookOpen, Key, BarChart3, Settings, Shield } from "lucide-react";
+import { Users, BookOpen, Key, BarChart3, Settings, Shield, DollarSign, FolderOpen } from "lucide-react";
 import { Link } from "react-router-dom";
 import logo from "@/assets/logo.jpg";
 
@@ -15,11 +15,23 @@ export default function AdminHome() {
         supabase.from("tokens").select("id", { count: "exact", head: true }),
         supabase.from("enrollments").select("id", { count: "exact", head: true }),
       ]);
+
+      // Revenue estimate
+      const { data: enrollData } = await supabase.from("enrollments").select("course_id");
+      const { data: courseData } = await supabase.from("courses").select("id, price");
+      let revenue = 0;
+      if (enrollData && courseData) {
+        const priceMap: Record<string, number> = {};
+        courseData.forEach((c: any) => { priceMap[c.id] = c.price || 0; });
+        enrollData.forEach((e: any) => { revenue += priceMap[e.course_id] || 0; });
+      }
+
       return {
         users: users.count || 0,
         courses: courses.count || 0,
         tokens: tokens.count || 0,
         enrollments: enrollments.count || 0,
+        revenue,
       };
     },
   });
@@ -45,13 +57,14 @@ export default function AdminHome() {
 
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: "Users", value: stats?.users, color: "text-primary" },
-          { label: "Courses", value: stats?.courses, color: "text-galaxy-cyan" },
-          { label: "Tokens", value: stats?.tokens, color: "text-warning" },
-          { label: "Enrollments", value: stats?.enrollments, color: "text-success" },
-        ].map(({ label, value, color }) => (
+          { label: "Users", value: stats?.users, color: "text-primary", icon: Users },
+          { label: "Courses", value: stats?.courses, color: "text-galaxy-cyan", icon: BookOpen },
+          { label: "Revenue", value: stats?.revenue != null ? `₹${stats.revenue}` : undefined, color: "text-success", icon: DollarSign },
+          { label: "Enrollments", value: stats?.enrollments, color: "text-warning", icon: Shield },
+        ].map(({ label, value, color, icon: Icon }) => (
           <Card key={label} className="glass-card">
             <CardContent className="p-4 text-center">
+              <Icon className={`w-5 h-5 mx-auto mb-1.5 ${color}`} />
               <p className={`text-2xl font-bold font-display ${color}`}>{value ?? "—"}</p>
               <p className="text-xs text-muted-foreground">{label}</p>
             </CardContent>

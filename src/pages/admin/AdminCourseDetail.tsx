@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Plus, Folder, FileText, Image, Upload, Trash2, Edit2 } from "lucide-react";
+import { ArrowLeft, Plus, Folder, FileText, Image, Upload, Trash2, Edit2, Save } from "lucide-react";
 import { toast } from "sonner";
+import { Progress } from "@/components/ui/progress";
 
 export default function AdminCourseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +22,7 @@ export default function AdminCourseDetail() {
 
   const [showAddFolder, setShowAddFolder] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
+  const [showEditCourse, setShowEditCourse] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [parentFolderId, setParentFolderId] = useState<string | null>(null);
   const [uploadName, setUploadName] = useState("");
@@ -32,11 +34,19 @@ export default function AdminCourseDetail() {
   const [unitName, setUnitName] = useState("");
   const [chapterName, setChapterName] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  // Course edit fields
+  const [editTitle, setEditTitle] = useState("");
+  const [editPrice, setEditPrice] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editValidity, setEditValidity] = useState("");
+  const [editLaunched, setEditLaunched] = useState(false);
 
   if (!isAdmin) return <Navigate to="/" replace />;
 
-  const { data: course } = useQuery({
+  const { data: course, refetch: refetchCourse } = useQuery({
     queryKey: ["admin-course", id],
     queryFn: async () => {
       const { data } = await supabase.from("courses").select("*").eq("id", id!).single();
@@ -66,89 +76,135 @@ export default function AdminCourseDetail() {
   const createFolder = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("folders").insert({
-        name: folderName.trim(),
-        course_id: id!,
-        parent_id: parentFolderId,
+        name: folderName.trim(), course_id: id!, parent_id: parentFolderId,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-folders", id] });
-      toast.success("Folder created!");
-      setShowAddFolder(false);
-      setFolderName("");
-      setParentFolderId(null);
+      toast.success("Folder created!"); setShowAddFolder(false); setFolderName(""); setParentFolderId(null);
     },
     onError: (e: any) => toast.error(e.message),
   });
 
   const deleteFolder = useMutation({
-    mutationFn: async (folderId: string) => {
-      await supabase.from("folders").delete().eq("id", folderId);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-folders", id] });
-      toast.success("Folder deleted");
-    },
+    mutationFn: async (folderId: string) => { await supabase.from("folders").delete().eq("id", folderId); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-folders", id] }); toast.success("Folder deleted"); },
   });
 
   const deleteContent = useMutation({
-    mutationFn: async (contentId: string) => {
-      await supabase.from("content").delete().eq("id", contentId);
+    mutationFn: async (contentId: string) => { await supabase.from("content").delete().eq("id", contentId); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-content", id] }); toast.success("Content deleted"); },
+  });
+
+  const updateCourse = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("courses").update({
+        title: editTitle.trim(),
+        price: parseFloat(editPrice) || 0,
+        description: editDescription.trim() || null,
+        validity_days: editValidity ? parseInt(editValidity) : null,
+        is_launched: editLaunched,
+      }).eq("id", id!);
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-content", id] });
-      toast.success("Content deleted");
+      refetchCourse(); toast.success("Course updated!"); setShowEditCourse(false);
     },
+    onError: (e: any) => toast.error(e.message),
   });
+
+  const openEditCourse = () => {
+    if (!course) return;
+    setEditTitle(course.title);
+    setEditPrice(course.price?.toString() || "0");
+    setEditDescription(course.description || "");
+    setEditValidity(course.validity_days?.toString() || "");
+    setEditLaunched(course.is_launched);
+    setShowEditCourse(true);
+  };
 
   const handleUpload = async () => {
     if (!selectedFile || !uploadName.trim()) return;
     setUploading(true);
+    setUploadProgress(0);
+
     try {
+      const CHUNK_SIZE = 6 * 1024 * 1024; // 6MB chunks
       const ext = selectedFile.name.split(".").pop();
       const filePath = `${id}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("content").upload(filePath, selectedFile);
-      if (uploadError) throw uploadError;
+
+      if (selectedFile.size > CHUNK_SIZE) {
+        // Large file: upload in chunks with progress simulation
+        const totalChunks = Math.ceil(selectedFile.size / CHUNK_SIZE);
+        let uploaded = 0;
+
+        // For Supabase storage, we still do a single upload but track progress
+        const xhr = new XMLHttpRequest();
+        const uploadPromise = new Promise<void>((resolve, reject) => {
+          xhr.upload.addEventListener("progress", (e) => {
+            if (e.lengthComputable) {
+              setUploadProgress(Math.round((e.loaded / e.total) * 100));
+            }
+          });
+          xhr.addEventListener("load", () => {
+            if (xhr.status >= 200 && xhr.status < 300) resolve();
+            else reject(new Error(`Upload failed: ${xhr.status}`));
+          });
+          xhr.addEventListener("error", () => reject(new Error("Upload failed")));
+
+          const projectUrl = import.meta.env.VITE_SUPABASE_URL;
+          const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+          xhr.open("POST", `${projectUrl}/storage/v1/object/content/${filePath}`);
+          xhr.setRequestHeader("Authorization", `Bearer ${(supabase as any).auth.session?.()?.access_token || apiKey}`);
+          xhr.setRequestHeader("apikey", apiKey);
+          xhr.setRequestHeader("x-upsert", "true");
+          
+          // Get the current session token
+          supabase.auth.getSession().then(({ data }) => {
+            const token = data.session?.access_token || apiKey;
+            xhr.open("POST", `${projectUrl}/storage/v1/object/content/${filePath}`);
+            xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+            xhr.setRequestHeader("apikey", apiKey);
+            xhr.setRequestHeader("x-upsert", "true");
+            xhr.send(selectedFile);
+          });
+        });
+
+        await uploadPromise;
+      } else {
+        // Small file: standard upload
+        setUploadProgress(30);
+        const { error: uploadError } = await supabase.storage.from("content").upload(filePath, selectedFile);
+        if (uploadError) throw uploadError;
+        setUploadProgress(80);
+      }
 
       const { data: { publicUrl } } = supabase.storage.from("content").getPublicUrl(filePath);
 
       const { error } = await supabase.from("content").insert({
-        name: uploadName.trim(),
-        course_id: id!,
+        name: uploadName.trim(), course_id: id!,
         folder_id: uploadFolderId === "root" ? null : uploadFolderId,
-        content_type: uploadType,
-        file_url: publicUrl,
-        file_size: selectedFile.size,
-        access_type: accessType,
-        add_watermark: addWatermark,
-        allow_download: allowDownload,
-        unit_name: unitName.trim() || null,
-        chapter_name: chapterName.trim() || null,
+        content_type: uploadType, file_url: publicUrl, file_size: selectedFile.size,
+        access_type: accessType, add_watermark: addWatermark, allow_download: allowDownload,
+        unit_name: unitName.trim() || null, chapter_name: chapterName.trim() || null,
         created_by: user!.id,
       });
       if (error) throw error;
 
+      setUploadProgress(100);
       queryClient.invalidateQueries({ queryKey: ["admin-content", id] });
-      toast.success("Content uploaded!");
-      setShowUpload(false);
-      resetUploadForm();
+      toast.success("Content uploaded!"); setShowUpload(false); resetUploadForm();
     } catch (e: any) {
-      toast.error(e.message);
+      toast.error(e.message || "Upload failed. Try a smaller file or check your connection.");
     }
     setUploading(false);
+    setUploadProgress(0);
   };
 
   const resetUploadForm = () => {
-    setUploadName("");
-    setSelectedFile(null);
-    setUploadType("pdf");
-    setUploadFolderId("root");
-    setAccessType("paid");
-    setAddWatermark(true);
-    setAllowDownload(false);
-    setUnitName("");
-    setChapterName("");
+    setUploadName(""); setSelectedFile(null); setUploadType("pdf"); setUploadFolderId("root");
+    setAccessType("paid"); setAddWatermark(true); setAllowDownload(false); setUnitName(""); setChapterName("");
   };
 
   const rootFolders = folders?.filter((f) => !f.parent_id) || [];
@@ -170,13 +226,18 @@ export default function AdminCourseDetail() {
             <Link to="/admin/courses" className="p-2 rounded-full glass-card"><ArrowLeft className="w-4 h-4" /></Link>
             <div>
               <h1 className="text-lg font-display font-bold truncate max-w-[200px]">{course.title}</h1>
-              <p className="text-[10px] text-muted-foreground">Sem {course.semester} · {course.subject} · ₹{course.price}</p>
+              <p className="text-[10px] text-muted-foreground">
+                Sem {course.semester} · {course.subject} · ₹{course.price}
+                {course.is_launched ? " · 🟢 Live" : " · 🔴 Draft"}
+              </p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setShowAddFolder(true)} className="gap-1"><Folder className="w-3 h-3" />Folder</Button>
-            <Button size="sm" onClick={() => setShowUpload(true)} className="gap-1"><Upload className="w-3 h-3" />Upload</Button>
-          </div>
+          <Button size="sm" variant="outline" onClick={openEditCourse} className="gap-1"><Edit2 className="w-3 h-3" />Edit</Button>
+        </div>
+
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setShowAddFolder(true)} className="gap-1 flex-1"><Folder className="w-3 h-3" />Add Folder</Button>
+          <Button size="sm" onClick={() => setShowUpload(true)} className="gap-1 flex-1"><Upload className="w-3 h-3" />Upload</Button>
         </div>
 
         {/* Folders */}
@@ -218,7 +279,6 @@ export default function AdminCourseDetail() {
           </section>
         )}
 
-        {/* Root Content */}
         {rootContent.length > 0 && (
           <section className="space-y-2">
             <h2 className="text-sm font-display font-semibold">Content</h2>
@@ -247,6 +307,35 @@ export default function AdminCourseDetail() {
           </div>
         )}
       </div>
+
+      {/* Edit Course Dialog */}
+      <Dialog open={showEditCourse} onOpenChange={setShowEditCourse}>
+        <DialogContent className="glass-card border-border/50 max-w-sm">
+          <DialogHeader><DialogTitle className="font-display">Edit Course</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Course Title" className="bg-muted/50" />
+            <Input value={editPrice} onChange={(e) => setEditPrice(e.target.value)} placeholder="Price (₹)" type="number" className="bg-muted/50" />
+            <Input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Description" className="bg-muted/50" />
+            <Select value={editValidity || "none"} onValueChange={(v) => setEditValidity(v === "none" ? "" : v)}>
+              <SelectTrigger className="bg-muted/50"><SelectValue placeholder="Validity" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Lifetime</SelectItem>
+                <SelectItem value="30">30 Days</SelectItem>
+                <SelectItem value="90">90 Days</SelectItem>
+                <SelectItem value="180">180 Days</SelectItem>
+                <SelectItem value="365">1 Year</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Launch Course</span>
+              <Switch checked={editLaunched} onCheckedChange={setEditLaunched} />
+            </div>
+            <Button className="w-full gap-2" onClick={() => updateCourse.mutate()} disabled={!editTitle.trim()}>
+              <Save className="w-4 h-4" /> Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Folder Dialog */}
       <Dialog open={showAddFolder} onOpenChange={setShowAddFolder}>
@@ -323,16 +412,22 @@ export default function AdminCourseDetail() {
                 <div>
                   <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">Tap to select file</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Max 500MB</p>
                 </div>
               )}
               <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
+                ref={fileInputRef} type="file" className="hidden"
                 accept={uploadType === "pdf" ? ".pdf" : "image/*"}
                 onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
               />
             </div>
+
+            {uploading && (
+              <div className="space-y-1">
+                <Progress value={uploadProgress} className="h-2" />
+                <p className="text-xs text-center text-muted-foreground">{uploadProgress}% uploaded</p>
+              </div>
+            )}
 
             <Button className="w-full" onClick={handleUpload} disabled={uploading || !selectedFile || !uploadName.trim()}>
               {uploading ? "Uploading..." : "Upload Content"}

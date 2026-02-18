@@ -37,6 +37,7 @@ export default function Auth() {
       else { toast.success("Welcome back!"); navigate("/"); }
     } else {
       if (!fullName.trim()) { toast.error("Please enter your full name"); setLoading(false); return; }
+      if (password.length < 8) { toast.error("Password must be at least 8 characters"); setLoading(false); return; }
       const { error } = await signUp(email, password, fullName);
       if (error) toast.error(error.message);
       else toast.success("Check your email to verify your account!");
@@ -52,7 +53,7 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen galaxy-gradient flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md glass-card animate-fade-in">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
@@ -82,7 +83,7 @@ export default function Auth() {
                   <Input placeholder="Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)} className="bg-muted/50 border-border/50" maxLength={100} />
                 )}
                 <Input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="bg-muted/50 border-border/50" required maxLength={255} />
-                <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="bg-muted/50 border-border/50" required minLength={6} />
+                <Input type="password" placeholder="Password (min 8 characters)" value={password} onChange={(e) => setPassword(e.target.value)} className="bg-muted/50 border-border/50" required minLength={8} />
                 {mode === "login" && (
                   <div className="text-right">
                     <button type="button" onClick={() => setMode("forgot")} className="text-xs text-primary hover:underline">Forgot Password?</button>
