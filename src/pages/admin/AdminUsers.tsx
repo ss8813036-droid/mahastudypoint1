@@ -7,14 +7,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Navigate, Link } from "react-router-dom";
-import { ArrowLeft, Check, X, Search, Shield, Ban, UserCheck } from "lucide-react";
+import { ArrowLeft, Check, X, Search, KeyRound, LogOut } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminUsers() {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [passwordDialog, setPasswordDialog] = useState<{ userId: string; name: string } | null>(null);
+  const [newPassword, setNewPassword] = useState("");
 
   if (!isAdmin) return <Navigate to="/" replace />;
 
@@ -47,6 +50,34 @@ export default function AdminUsers() {
       }
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-users"] }); toast.success("Role updated!"); },
+  });
+
+  const changePassword = useMutation({
+    mutationFn: async ({ userId, password }: { userId: string; password: string }) => {
+      const { data, error } = await supabase.functions.invoke("admin-user-management", {
+        body: { action: "change_password", userId, newPassword: password },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => {
+      toast.success("Password changed successfully!");
+      setPasswordDialog(null);
+      setNewPassword("");
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to change password"),
+  });
+
+  const forceLogout = useMutation({
+    mutationFn: async (userId: string) => {
+      const { data, error } = await supabase.functions.invoke("admin-user-management", {
+        body: { action: "force_logout", userId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => toast.success("User logged out successfully!"),
+    onError: (err: any) => toast.error(err.message || "Failed to force logout"),
   });
 
   const filtered = users?.filter((u: any) =>
@@ -91,10 +122,10 @@ export default function AdminUsers() {
                       ))}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Select defaultValue={primaryRole}
                       onValueChange={(role) => changeRole.mutate({ userId: u.user_id, role })}>
-                      <SelectTrigger className="h-8 text-xs bg-muted/50"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-8 text-xs bg-muted/50 flex-1 min-w-[100px]"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="student">Student</SelectItem>
                         <SelectItem value="teacher">Teacher</SelectItem>
@@ -107,6 +138,19 @@ export default function AdminUsers() {
                         {u.is_approved ? <><X className="w-3 h-3 mr-1" />Revoke</> : <><Check className="w-3 h-3 mr-1" />Approve</>}
                       </Button>
                     )}
+                    <Button size="sm" variant="outline" className="text-xs h-8"
+                      onClick={() => { setPasswordDialog({ userId: u.user_id, name: u.full_name || "User" }); setNewPassword(""); }}>
+                      <KeyRound className="w-3 h-3 mr-1" />Password
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-xs h-8 text-destructive hover:text-destructive"
+                      onClick={() => {
+                        if (confirm(`Force logout ${u.full_name || "this user"}?`)) {
+                          forceLogout.mutate(u.user_id);
+                        }
+                      }}
+                      disabled={forceLogout.isPending}>
+                      <LogOut className="w-3 h-3 mr-1" />Logout
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -114,6 +158,30 @@ export default function AdminUsers() {
           })}
         </div>
       </div>
+
+      <Dialog open={!!passwordDialog} onOpenChange={() => setPasswordDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Password — {passwordDialog?.name}</DialogTitle>
+          </DialogHeader>
+          <Input
+            type="password"
+            placeholder="New password (min 8 characters)"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            minLength={8}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPasswordDialog(null)}>Cancel</Button>
+            <Button
+              disabled={newPassword.length < 8 || changePassword.isPending}
+              onClick={() => passwordDialog && changePassword.mutate({ userId: passwordDialog.userId, password: newPassword })}
+            >
+              {changePassword.isPending ? "Changing..." : "Change Password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
