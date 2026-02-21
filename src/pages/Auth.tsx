@@ -1,21 +1,26 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { signUp, signIn } from "@/lib/auth";
+import { registerDeviceSession } from "@/lib/device-session";
 import { lovable } from "@/integrations/lovable/index";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import logo from "@/assets/logo.jpg";
 
 export default function Auth() {
+  const { user, loading: authLoading } = useAuth();
   const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  if (!authLoading && user) return <Navigate to="/" replace />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,9 +37,18 @@ export default function Auth() {
     }
 
     if (mode === "login") {
-      const { error } = await signIn(email, password);
-      if (error) toast.error(error.message);
-      else { toast.success("Welcome back!"); navigate("/"); }
+      const { data, error } = await signIn(email, password);
+      if (error) { toast.error(error.message); }
+      else if (data?.user) {
+        const deviceCheck = await registerDeviceSession(data.user.id);
+        if (!deviceCheck.allowed) {
+          await supabase.auth.signOut();
+          toast.error(deviceCheck.message || "Device not allowed");
+        } else {
+          toast.success("Welcome back!");
+          navigate("/");
+        }
+      }
     } else {
       if (!fullName.trim()) { toast.error("Please enter your full name"); setLoading(false); return; }
       if (password.length < 8) { toast.error("Password must be at least 8 characters"); setLoading(false); return; }
