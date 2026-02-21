@@ -24,7 +24,8 @@ export default function Chat() {
     queryKey: ["chat-courses", user?.id, isAdmin, isTeacher],
     queryFn: async () => {
       if (isAdmin) {
-        const { data } = await supabase.from("courses").select("id, title, chat_enabled");
+        const { data, error } = await supabase.from("courses").select("id, title, chat_enabled");
+        if (error) console.error("courses fetch error:", error);
         return (data || []).map((c: any) => ({ course_id: c.id, courses: c }));
       }
       if (isTeacher) {
@@ -74,14 +75,18 @@ export default function Chat() {
 
   const sendMessage = async (isAnnouncement = false) => {
     if (!message.trim() || !selectedCourse) return;
+    const msgText = message.trim();
+    setMessage("");
     const { error } = await supabase.from("chat_messages").insert({
       course_id: selectedCourse,
       user_id: user.id,
-      message: message.trim(),
+      message: msgText,
       is_announcement: isAnnouncement,
     });
-    if (error) toast.error("Failed to send");
-    setMessage("");
+    if (error) {
+      console.error("Send message error:", error);
+      toast.error("Failed to send: " + error.message);
+    }
   };
 
   const selectedCourseData = courseList?.find((e: any) => e.course_id === selectedCourse)?.courses;
@@ -190,7 +195,7 @@ export default function Chat() {
               <div ref={messagesEndRef} />
             </div>
             {/* Only admin can send announcements */}
-            {isAdmin && (
+            {(isAdmin || isTeacher) && (
               <div className="p-3 glass-card border-t border-border/50">
                 <div className="flex gap-2">
                   <Input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Send announcement..." className="bg-muted/50" onKeyDown={(e) => e.key === "Enter" && sendMessage(true)} maxLength={1000} />
