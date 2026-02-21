@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Navigate, Link } from "react-router-dom";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminSettings() {
@@ -29,6 +29,15 @@ export default function AdminSettings() {
     },
   });
 
+  // Courses for chat toggle
+  const { data: courses } = useQuery({
+    queryKey: ["admin-courses-chat"],
+    queryFn: async () => {
+      const { data } = await supabase.from("courses").select("id, title, chat_enabled");
+      return data || [];
+    },
+  });
+
   useEffect(() => {
     if (settings) {
       setWhatsappNumber(settings.whatsapp_number || "");
@@ -40,7 +49,6 @@ export default function AdminSettings() {
 
   const saveSetting = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: string }) => {
-      // Use upsert to handle both existing and new settings
       const { error } = await supabase
         .from("app_settings")
         .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
@@ -48,6 +56,17 @@ export default function AdminSettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-settings"] });
+    },
+  });
+
+  const toggleChat = useMutation({
+    mutationFn: async ({ courseId, enabled }: { courseId: string; enabled: boolean }) => {
+      const { error } = await supabase.from("courses").update({ chat_enabled: enabled }).eq("id", courseId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-courses-chat"] });
+      toast.success("Chat setting updated!");
     },
   });
 
@@ -94,6 +113,27 @@ export default function AdminSettings() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Chat Access Control */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-4">
+            <h2 className="text-sm font-display font-semibold flex items-center gap-2">
+              <MessageCircle className="w-4 h-4" /> Chat Access Control
+            </h2>
+            <p className="text-xs text-muted-foreground">Enable or disable chat for each course.</p>
+            {courses?.length === 0 && <p className="text-xs text-muted-foreground">No courses yet.</p>}
+            {courses?.map((c: any) => (
+              <div key={c.id} className="flex items-center justify-between py-1">
+                <span className="text-sm truncate flex-1 mr-2">{c.title}</span>
+                <Switch
+                  checked={c.chat_enabled !== false}
+                  onCheckedChange={(enabled) => toggleChat.mutate({ courseId: c.id, enabled })}
+                />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
         <Button className="w-full gap-2" onClick={saveAll}><Save className="w-4 h-4" />Save All Settings</Button>
       </div>
     </AppLayout>

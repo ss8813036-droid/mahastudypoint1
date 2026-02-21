@@ -2,12 +2,11 @@ import { useParams, Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { ArrowLeft, Download, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef, useCallback } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 
-// Set PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 function Watermark({ username }: { username: string }) {
@@ -28,12 +27,15 @@ export default function ContentViewer() {
   const { id } = useParams<{ id: string }>();
   const { user, profile } = useAuth();
   const [zoom, setZoom] = useState(1);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(0);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
-  const [rendering, setRendering] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [totalPages, setTotalPages] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
+  const renderedPages = useRef<Set<number>>(new Set());
+
+  // Pinch-to-zoom state
+  const lastDistRef = useRef<number | null>(null);
+  const baseZoomRef = useRef(1);
 
   const { data: item } = useQuery({
     queryKey: ["content-item", id],
@@ -50,7 +52,7 @@ export default function ContentViewer() {
     }
   }, [item, user]);
 
-  // Load PDF document
+  // Load PDF
   useEffect(() => {
     if (item?.content_type === "pdf" && item.file_url) {
       const loadPdf = async () => {
@@ -58,7 +60,7 @@ export default function ContentViewer() {
           const doc = await pdfjsLib.getDocument(item.file_url).promise;
           setPdfDoc(doc);
           setTotalPages(doc.numPages);
-          setCurrentPage(1);
+          renderedPages.current.clear();
         } catch (err) {
           console.error("Failed to load PDF:", err);
         }
@@ -67,30 +69,82 @@ export default function ContentViewer() {
     }
   }, [item]);
 
-  // Render current page
-  const renderingRef = useRef(false);
-  const renderPage = useCallback(async () => {
-    if (!pdfDoc || !canvasRef.current || renderingRef.current) return;
-    renderingRef.current = true;
-    setRendering(true);
+  // Render a single page
+  const renderPage = useCallback(async (pageNum: number) => {
+    if (!pdfDoc || renderedPages.current.has(pageNum)) return;
+    const canvas = canvasRefs.current.get(pageNum);
+    if (!canvas) return;
+    
+    renderedPages.current.add(pageNum);
     try {
-      const page = await pdfDoc.getPage(currentPage);
+      const page = await pdfDoc.getPage(pageNum);
       const viewport = page.getViewport({ scale: zoom * 1.5 });
-      const canvas = canvasRef.current;
       const context = canvas.getContext("2d")!;
       canvas.height = viewport.height;
       canvas.width = viewport.width;
       await page.render({ canvasContext: context, viewport }).promise;
     } catch (err) {
-      console.error("Failed to render page:", err);
+      renderedPages.current.delete(pageNum);
+      console.error(`Failed to render page ${pageNum}:`, err);
     }
-    renderingRef.current = false;
-    setRendering(false);
-  }, [pdfDoc, currentPage, zoom]);
+  }, [pdfDoc, zoom]);
 
+  // Re-render all pages on zoom change
   useEffect(() => {
-    renderPage();
-  }, [renderPage]);
+    if (!pdfDoc) return;
+    renderedPages.current.clear();
+    for (let i = 1; i <= totalPages; i++) {
+      renderPage(i);
+    }
+  }, [pdfDoc, zoom, totalPages, renderPage]);
+
+  // Pinch-to-zoom handler
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        lastDistRef.current = Math.hypot(dx, dy);
+        baseZoomRef.current = zoom;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && lastDistRef.current !== null) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        const scale = dist / lastDistRef.current;
+        const newZoom = Math.min(3, Math.max(0.5, baseZoomRef.current * scale));
+        setZoom(newZoom);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      lastDistRef.current = null;
+    };
+
+    container.addEventListener("touchstart", handleTouchStart, { passive: false });
+    container.addEventListener("touchmove", handleTouchMove, { passive: false });
+    container.addEventListener("touchend", handleTouchEnd);
+
+    return () => {
+      container.removeEventListener("touchstart", handleTouchStart);
+      container.removeEventListener("touchmove", handleTouchMove);
+      container.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [zoom]);
+
+  const setCanvasRef = useCallback((pageNum: number) => (el: HTMLCanvasElement | null) => {
+    if (el) {
+      canvasRefs.current.set(pageNum, el);
+    }
+  }, []);
 
   if (!user) return <Navigate to="/auth" replace />;
   if (!item) return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Loading...</div>;
@@ -106,11 +160,7 @@ export default function ContentViewer() {
           </div>
           <div className="flex items-center gap-1">
             {item.content_type === "pdf" && (
-              <>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setZoom(Math.max(0.5, zoom - 0.25))}><ZoomOut className="w-4 h-4" /></Button>
-                <span className="text-xs text-muted-foreground w-10 text-center">{Math.round(zoom * 100)}%</span>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setZoom(Math.min(3, zoom + 0.25))}><ZoomIn className="w-4 h-4" /></Button>
-              </>
+              <span className="text-xs text-muted-foreground">{Math.round(zoom * 100)}%</span>
             )}
             {item.allow_download && (
               <a href={item.file_url} download target="_blank" rel="noopener noreferrer">
@@ -126,28 +176,18 @@ export default function ContentViewer() {
         {item.add_watermark && <Watermark username={profile?.full_name || user.email || "User"} />}
         
         {item.content_type === "pdf" ? (
-          <div className="flex flex-col items-center pb-20">
-            <div className="overflow-auto w-full flex justify-center p-2">
+          <div className="flex flex-col items-center gap-2 pb-6 px-2">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
               <canvas
-                ref={canvasRef}
-                className="max-w-full"
+                key={pageNum}
+                ref={setCanvasRef(pageNum)}
+                className="max-w-full shadow-sm"
                 style={{ touchAction: "pan-y" }}
                 onContextMenu={(e) => e.preventDefault()}
               />
-            </div>
-            {/* Page navigation */}
-            {totalPages > 0 && (
-              <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 glass-card rounded-full px-4 py-2 flex items-center gap-3">
-                <Button variant="ghost" size="icon" className="h-8 w-8" disabled={currentPage <= 1}
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}>
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <span className="text-xs font-medium min-w-[60px] text-center">{currentPage} / {totalPages}</span>
-                <Button variant="ghost" size="icon" className="h-8 w-8" disabled={currentPage >= totalPages}
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}>
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
+            ))}
+            {totalPages === 0 && (
+              <p className="text-sm text-muted-foreground py-12">Loading PDF...</p>
             )}
           </div>
         ) : (
