@@ -290,6 +290,7 @@ export type Database = {
       }
       courses: {
         Row: {
+          chat_enabled: boolean
           created_at: string
           created_by: string | null
           description: string | null
@@ -304,6 +305,7 @@ export type Database = {
           validity_days: number | null
         }
         Insert: {
+          chat_enabled?: boolean
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -318,6 +320,7 @@ export type Database = {
           validity_days?: number | null
         }
         Update: {
+          chat_enabled?: boolean
           created_at?: string
           created_by?: string | null
           description?: string | null

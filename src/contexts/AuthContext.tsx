@@ -65,41 +65,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    // Set up auth listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+
         if (session?.user) {
-          // On SIGNED_IN (e.g. Google OAuth), check device
-          if (event === "SIGNED_IN") {
-            const deviceCheck = await registerDeviceSession(session.user.id);
-            if (!deviceCheck.allowed) {
-              toast.error(deviceCheck.message || "Device not allowed");
-              await supabase.auth.signOut();
-              setSession(null);
-              setUser(null);
-              setProfile(null);
-              setRoles([]);
-              setLoading(false);
-              return;
+          // Use setTimeout to avoid Supabase auth deadlock
+          setTimeout(async () => {
+            try {
+              await loadUserData(session.user.id);
+              
+              // Run device check in background - don't block login
+              if (event === "SIGNED_IN") {
+                const deviceCheck = await registerDeviceSession(session.user.id);
+                if (!deviceCheck.allowed) {
+                  toast.error(deviceCheck.message || "Device not allowed");
+                  await supabase.auth.signOut();
+                  setSession(null);
+                  setUser(null);
+                  setProfile(null);
+                  setRoles([]);
+                }
+              }
+            } catch (err) {
+              console.error("Error loading user data:", err);
             }
-          }
-          setTimeout(() => loadUserData(session.user.id), 0);
+            setLoading(false);
+          }, 0);
         } else {
           setProfile(null);
           setRoles([]);
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
+    // Then get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        loadUserData(session.user.id);
+        loadUserData(session.user.id).finally(() => setLoading(false));
+      } else {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
