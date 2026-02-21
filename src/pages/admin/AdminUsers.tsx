@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Navigate, Link } from "react-router-dom";
-import { ArrowLeft, Check, X, Search, KeyRound, LogOut } from "lucide-react";
+import { ArrowLeft, Check, X, Search, KeyRound, LogOut, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminUsers() {
@@ -17,6 +17,7 @@ export default function AdminUsers() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [passwordDialog, setPasswordDialog] = useState<{ userId: string; name: string } | null>(null);
+  const [deviceDialog, setDeviceDialog] = useState<{ userId: string; name: string } | null>(null);
   const [newPassword, setNewPassword] = useState("");
 
   if (!isAdmin) return <Navigate to="/" replace />;
@@ -78,6 +79,35 @@ export default function AdminUsers() {
     },
     onSuccess: () => toast.success("User logged out successfully!"),
     onError: (err: any) => toast.error(err.message || "Failed to force logout"),
+  });
+
+  const { data: deviceSessions } = useQuery({
+    queryKey: ["device-sessions", deviceDialog?.userId],
+    queryFn: async () => {
+      if (!deviceDialog?.userId) return [];
+      const { data } = await supabase.from("device_sessions").select("*").eq("user_id", deviceDialog.userId);
+      return data || [];
+    },
+    enabled: !!deviceDialog?.userId,
+  });
+
+  const approveDevice = useMutation({
+    mutationFn: async ({ sessionId }: { sessionId: string }) => {
+      // Deactivate all other sessions for this user
+      const session = deviceSessions?.find((s: any) => s.id === sessionId);
+      if (session) {
+        await supabase.from("device_sessions").update({ is_active: false }).eq("user_id", session.user_id).neq("id", sessionId);
+        await supabase.from("device_sessions").update({ is_approved: true, is_active: true }).eq("id", sessionId);
+      }
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["device-sessions"] }); toast.success("Device approved!"); },
+  });
+
+  const removeDevice = useMutation({
+    mutationFn: async ({ sessionId }: { sessionId: string }) => {
+      await supabase.from("device_sessions").delete().eq("id", sessionId);
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["device-sessions"] }); toast.success("Device removed!"); },
   });
 
   const filtered = users?.filter((u: any) =>
@@ -142,6 +172,10 @@ export default function AdminUsers() {
                       onClick={() => { setPasswordDialog({ userId: u.user_id, name: u.full_name || "User" }); setNewPassword(""); }}>
                       <KeyRound className="w-3 h-3 mr-1" />Password
                     </Button>
+                    <Button size="sm" variant="outline" className="text-xs h-8"
+                      onClick={() => setDeviceDialog({ userId: u.user_id, name: u.full_name || "User" })}>
+                      <Smartphone className="w-3 h-3 mr-1" />Devices
+                    </Button>
                     <Button size="sm" variant="outline" className="text-xs h-8 text-destructive hover:text-destructive"
                       onClick={() => {
                         if (confirm(`Force logout ${u.full_name || "this user"}?`)) {
@@ -180,6 +214,38 @@ export default function AdminUsers() {
               {changePassword.isPending ? "Changing..." : "Change Password"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deviceDialog} onOpenChange={() => setDeviceDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Devices — {deviceDialog?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {deviceSessions?.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No device sessions found.</p>}
+            {deviceSessions?.map((s: any) => (
+              <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                <div>
+                  <p className="text-sm font-medium">{s.device_name || "Unknown Device"}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {s.is_active ? "🟢 Active" : "⚪ Inactive"} · {s.is_approved ? "Approved" : "Pending"}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">Last seen: {new Date(s.last_seen_at).toLocaleString()}</p>
+                </div>
+                <div className="flex gap-1">
+                  {!s.is_approved && (
+                    <Button size="sm" className="text-xs h-7" onClick={() => approveDevice.mutate({ sessionId: s.id })}>
+                      <Check className="w-3 h-3 mr-1" />Approve
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" className="text-xs h-7 text-destructive" onClick={() => removeDevice.mutate({ sessionId: s.id })}>
+                    <X className="w-3 h-3 mr-1" />Remove
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </DialogContent>
       </Dialog>
     </AppLayout>

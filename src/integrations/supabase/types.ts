@@ -333,6 +333,39 @@ export type Database = {
         }
         Relationships: []
       }
+      device_sessions: {
+        Row: {
+          created_at: string
+          device_id: string
+          device_name: string | null
+          id: string
+          is_active: boolean
+          is_approved: boolean
+          last_seen_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          device_name?: string | null
+          id?: string
+          is_active?: boolean
+          is_approved?: boolean
+          last_seen_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          device_name?: string | null
+          id?: string
+          is_active?: boolean
+          is_approved?: boolean
+          last_seen_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       enrollments: {
         Row: {
           course_id: string

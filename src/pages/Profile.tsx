@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { signOut } from "@/lib/auth";
+import { clearDeviceSession } from "@/lib/device-session";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { LogOut, User, Mail, GraduationCap, Shield, Sun, Moon, Monitor } from "lucide-react";
@@ -46,6 +47,7 @@ export default function Profile() {
   };
 
   const handleLogout = async () => {
+    if (user) await clearDeviceSession(user.id);
     await signOut();
     navigate("/auth");
   };

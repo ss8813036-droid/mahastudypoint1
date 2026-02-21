@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { getUserRole, getUserProfile } from "@/lib/auth";
+import { registerDeviceSession } from "@/lib/device-session";
+import { toast } from "sonner";
 
 type AppRole = "student" | "teacher" | "admin";
 
@@ -64,10 +66,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
+          // On SIGNED_IN (e.g. Google OAuth), check device
+          if (event === "SIGNED_IN") {
+            const deviceCheck = await registerDeviceSession(session.user.id);
+            if (!deviceCheck.allowed) {
+              toast.error(deviceCheck.message || "Device not allowed");
+              await supabase.auth.signOut();
+              setSession(null);
+              setUser(null);
+              setProfile(null);
+              setRoles([]);
+              setLoading(false);
+              return;
+            }
+          }
           setTimeout(() => loadUserData(session.user.id), 0);
         } else {
           setProfile(null);

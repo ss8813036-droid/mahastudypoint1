@@ -68,8 +68,10 @@ export default function ContentViewer() {
   }, [item]);
 
   // Render current page
+  const renderingRef = useRef(false);
   const renderPage = useCallback(async () => {
-    if (!pdfDoc || !canvasRef.current || rendering) return;
+    if (!pdfDoc || !canvasRef.current || renderingRef.current) return;
+    renderingRef.current = true;
     setRendering(true);
     try {
       const page = await pdfDoc.getPage(currentPage);
@@ -82,12 +84,13 @@ export default function ContentViewer() {
     } catch (err) {
       console.error("Failed to render page:", err);
     }
+    renderingRef.current = false;
     setRendering(false);
-  }, [pdfDoc, currentPage, zoom, rendering]);
+  }, [pdfDoc, currentPage, zoom]);
 
   useEffect(() => {
     renderPage();
-  }, [pdfDoc, currentPage, zoom]);
+  }, [renderPage]);
 
   if (!user) return <Navigate to="/auth" replace />;
   if (!item) return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Loading...</div>;
