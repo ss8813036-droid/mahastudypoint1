@@ -2,14 +2,14 @@ import { useParams, Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Download, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef, useCallback } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
-function Watermark({ username }: { username: string }) {
+function Watermark({ text }: { text: string }) {
   const positions = Array.from({ length: 20 }, (_, i) => ({
     top: `${(i % 5) * 25 + 5}%`,
     left: `${Math.floor(i / 5) * 30 + 5}%`,
@@ -17,7 +17,7 @@ function Watermark({ username }: { username: string }) {
   return (
     <div className="watermark-overlay">
       {positions.map((pos, i) => (
-        <span key={i} className="watermark-text" style={{ top: pos.top, left: pos.left }}>{username}</span>
+        <span key={i} className="watermark-text" style={{ top: pos.top, left: pos.left }}>{text}</span>
       ))}
     </div>
   );
@@ -32,10 +32,12 @@ export default function ContentViewer() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const renderedPages = useRef<Set<number>>(new Set());
+  const renderingPages = useRef<Set<number>>(new Set());
 
   // Pinch-to-zoom state
   const lastDistRef = useRef<number | null>(null);
   const baseZoomRef = useRef(1);
+  const zoomTimeoutRef = useRef<any>(null);
 
   const { data: item } = useQuery({
     queryKey: ["content-item", id],
@@ -46,11 +48,29 @@ export default function ContentViewer() {
     enabled: !!id,
   });
 
+  // Fetch admin watermark setting
+  const { data: watermarkSetting } = useQuery({
+    queryKey: ["watermark-setting"],
+    queryFn: async () => {
+      const { data } = await supabase.from("app_settings").select("value").eq("key", "watermark_type").single();
+      return data?.value || "email";
+    },
+  });
+
   useEffect(() => {
     if (item && user) {
       supabase.from("content_views").insert({ content_id: item.id, user_id: user.id });
     }
   }, [item, user]);
+
+  // Determine watermark text
+  const getWatermarkText = () => {
+    const type = watermarkSetting || "email";
+    if (type === "email") return user?.email || "User";
+    if (type === "name") return profile?.full_name || "User";
+    if (type === "both") return `${profile?.full_name || ""} · ${user?.email || ""}`;
+    return user?.email || "User";
+  };
 
   // Load PDF
   useEffect(() => {
@@ -61,6 +81,7 @@ export default function ContentViewer() {
           setPdfDoc(doc);
           setTotalPages(doc.numPages);
           renderedPages.current.clear();
+          renderingPages.current.clear();
         } catch (err) {
           console.error("Failed to load PDF:", err);
         }
@@ -70,31 +91,34 @@ export default function ContentViewer() {
   }, [item]);
 
   // Render a single page
-  const renderPage = useCallback(async (pageNum: number) => {
-    if (!pdfDoc || renderedPages.current.has(pageNum)) return;
+  const renderPage = useCallback(async (pageNum: number, currentZoom: number) => {
+    if (!pdfDoc) return;
+    if (renderingPages.current.has(pageNum)) return;
     const canvas = canvasRefs.current.get(pageNum);
     if (!canvas) return;
     
-    renderedPages.current.add(pageNum);
+    renderingPages.current.add(pageNum);
     try {
       const page = await pdfDoc.getPage(pageNum);
-      const viewport = page.getViewport({ scale: zoom * 1.5 });
+      const viewport = page.getViewport({ scale: currentZoom * 1.5 });
       const context = canvas.getContext("2d")!;
       canvas.height = viewport.height;
       canvas.width = viewport.width;
       await page.render({ canvasContext: context, viewport }).promise;
+      renderedPages.current.add(pageNum);
     } catch (err) {
-      renderedPages.current.delete(pageNum);
       console.error(`Failed to render page ${pageNum}:`, err);
+    } finally {
+      renderingPages.current.delete(pageNum);
     }
-  }, [pdfDoc, zoom]);
+  }, [pdfDoc]);
 
-  // Re-render all pages on zoom change
+  // Re-render all pages on zoom change (debounced)
   useEffect(() => {
     if (!pdfDoc) return;
     renderedPages.current.clear();
     for (let i = 1; i <= totalPages; i++) {
-      renderPage(i);
+      renderPage(i, zoom);
     }
   }, [pdfDoc, zoom, totalPages, renderPage]);
 
@@ -121,7 +145,13 @@ export default function ContentViewer() {
         const dist = Math.hypot(dx, dy);
         const scale = dist / lastDistRef.current;
         const newZoom = Math.min(3, Math.max(0.5, baseZoomRef.current * scale));
-        setZoom(newZoom);
+        // Use CSS transform for smooth visual zoom, debounce re-render
+        container.style.setProperty("--pinch-scale", String(newZoom / zoom));
+        if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
+        zoomTimeoutRef.current = setTimeout(() => {
+          container.style.removeProperty("--pinch-scale");
+          setZoom(newZoom);
+        }, 200);
       }
     };
 
@@ -146,6 +176,9 @@ export default function ContentViewer() {
     }
   }, []);
 
+  const handleZoomIn = () => setZoom((z) => Math.min(3, z + 0.25));
+  const handleZoomOut = () => setZoom((z) => Math.max(0.5, z - 0.25));
+
   if (!user) return <Navigate to="/auth" replace />;
   if (!item) return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Loading...</div>;
 
@@ -154,14 +187,21 @@ export default function ContentViewer() {
       {/* Top bar */}
       <div className="fixed top-0 left-0 right-0 z-40 glass-card border-b border-border/50">
         <div className="flex items-center justify-between p-3">
-          <div className="flex items-center gap-2">
-            <button onClick={() => window.history.back()} className="p-1"><ArrowLeft className="w-5 h-5" /></button>
-            <span className="text-sm font-medium truncate max-w-[180px]">{item.name}</span>
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <button onClick={() => window.history.back()} className="p-1 shrink-0"><ArrowLeft className="w-5 h-5" /></button>
+            <span className="text-sm font-medium truncate">{item.name}</span>
           </div>
-          <div className="flex items-center gap-1">
-            {item.content_type === "pdf" && (
-              <span className="text-xs text-muted-foreground">{Math.round(zoom * 100)}%</span>
-            )}
+
+          {/* Zoom controls - center */}
+          {item.content_type === "pdf" && (
+            <div className="flex items-center gap-1 mx-2">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomOut}><ZoomOut className="w-4 h-4" /></Button>
+              <span className="text-xs text-muted-foreground min-w-[40px] text-center">{Math.round(zoom * 100)}%</span>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomIn}><ZoomIn className="w-4 h-4" /></Button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-1 shrink-0">
             {item.allow_download && (
               <a href={item.file_url} download target="_blank" rel="noopener noreferrer">
                 <Button variant="ghost" size="icon" className="h-8 w-8"><Download className="w-4 h-4" /></Button>
@@ -173,7 +213,7 @@ export default function ContentViewer() {
 
       {/* Content */}
       <div className="pt-14 relative" ref={containerRef}>
-        {item.add_watermark && <Watermark username={profile?.full_name || user.email || "User"} />}
+        {item.add_watermark && <Watermark text={getWatermarkText()} />}
         
         {item.content_type === "pdf" ? (
           <div className="flex flex-col items-center gap-2 pb-6 px-2">
