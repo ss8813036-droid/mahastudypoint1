@@ -213,25 +213,27 @@ export default function ContentViewer() {
 
       {/* Content */}
       <div className="pt-14 relative" ref={containerRef}>
-        {item.add_watermark && <Watermark text={getWatermarkText()} />}
-        
         {item.content_type === "pdf" ? (
           <div className="flex flex-col items-center gap-2 pb-6 px-2">
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-              <canvas
-                key={pageNum}
-                ref={setCanvasRef(pageNum)}
-                className="max-w-full shadow-sm"
-                style={{ touchAction: "pan-y" }}
-                onContextMenu={(e) => e.preventDefault()}
-              />
+              <div key={pageNum} className="relative w-full flex justify-center">
+                <canvas
+                  ref={setCanvasRef(pageNum)}
+                  className="max-w-full shadow-sm"
+                  style={{ touchAction: "pan-y" }}
+                  onContextMenu={(e) => e.preventDefault()}
+                />
+                {item.add_watermark && watermarkSetting !== "none" && (
+                  <Watermark text={getWatermarkText()} />
+                )}
+              </div>
             ))}
             {totalPages === 0 && (
               <p className="text-sm text-muted-foreground py-12">Loading PDF...</p>
             )}
           </div>
         ) : (
-          <div className="flex items-center justify-center min-h-[calc(100vh-56px)] p-4">
+          <div className="relative flex items-center justify-center min-h-[calc(100vh-56px)] p-4">
             <img
               src={item.file_url}
               alt={item.name}
@@ -240,6 +242,9 @@ export default function ContentViewer() {
               draggable={false}
               onContextMenu={(e) => e.preventDefault()}
             />
+            {item.add_watermark && watermarkSetting !== "none" && (
+              <Watermark text={getWatermarkText()} />
+            )}
           </div>
         )}
       </div>

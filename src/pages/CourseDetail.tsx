@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useParams, Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { BookOpen, MessageSquare, Clock, Folder, FileText, Image, ChevronRight, ArrowLeft } from "lucide-react";
+import { BookOpen, MessageSquare, Clock, Folder, FileText, Image, ChevronRight, ArrowLeft, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 
@@ -18,8 +18,9 @@ export default function CourseDetail() {
   const [showPurchase, setShowPurchase] = useState(false);
   const [token, setToken] = useState("");
   const [redeeming, setRedeeming] = useState(false);
+  const [paying, setPaying] = useState(false);
 
-  if (!user) return <Navigate to="/auth" replace />;
+  // Early return moved after all hooks below
 
   const { data: course } = useQuery({
     queryKey: ["course", id],
@@ -87,10 +88,14 @@ export default function CourseDetail() {
       toast.error("WhatsApp is not configured yet");
       return;
     }
-    const msg = (settings.whatsapp_message_template || "")
-      .replace("{course_name}", course?.title || "")
-      .replace("{student_name}", user?.email || "");
-    const url = `https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(msg)}`;
+    // Clean phone number - remove spaces, +, etc
+    const cleanNumber = (settings.whatsapp_number || "").replace(/[^0-9]/g, "");
+    const msg = (settings.whatsapp_message_template || "I want to buy {course_name}")
+      .replace(/\{course_name\}/gi, course?.title || "")
+      .replace(/\(\(course_name\)\)/gi, course?.title || "")
+      .replace(/\{student_?name\}/gi, user?.email || "")
+      .replace(/\{studentname\}/gi, user?.email || "");
+    const url = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(msg)}`;
     window.open(url, "_blank");
   };
 
@@ -114,8 +119,80 @@ export default function CourseDetail() {
     setToken("");
   };
 
+  const handleRazorpayPayment = useCallback(async () => {
+    if (!course || !user) return;
+    setPaying(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-razorpay-order", {
+        body: { courseId: course.id },
+      });
+      if (error || data?.error) {
+        toast.error(data?.error || "Failed to create payment order");
+        setPaying(false);
+        return;
+      }
+
+      // Load Razorpay script dynamically
+      if (!(window as any).Razorpay) {
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.async = true;
+        await new Promise((resolve, reject) => {
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+      }
+
+      const options = {
+        key: data.keyId,
+        amount: data.amount,
+        currency: data.currency,
+        name: "MahaStudyPoint",
+        description: data.courseName,
+        order_id: data.orderId,
+        handler: async (response: any) => {
+          // Verify payment
+          const { data: verifyData, error: verifyError } = await supabase.functions.invoke("verify-razorpay-payment", {
+            body: {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              courseId: course.id,
+            },
+          });
+          if (verifyError || verifyData?.error) {
+            toast.error(verifyData?.error || "Payment verification failed");
+          } else {
+            toast.success("Payment successful! Course access granted.");
+            refetchEnrollment();
+            setShowPurchase(false);
+          }
+          setPaying(false);
+        },
+        modal: {
+          ondismiss: () => setPaying(false),
+        },
+        prefill: {
+          email: user.email,
+        },
+        theme: {
+          color: "#3B82F6",
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+    } catch (err: any) {
+      console.error("Razorpay error:", err);
+      toast.error("Payment initialization failed");
+      setPaying(false);
+    }
+  }, [course, user, refetchEnrollment]);
+
   const isEnrolled = !!enrollment;
 
+  if (!user) return <Navigate to="/auth" replace />;
   if (!course) return <AppLayout><div className="p-4 text-center text-muted-foreground">Loading...</div></AppLayout>;
 
   return (
@@ -212,6 +289,12 @@ export default function CourseDetail() {
             <DialogDescription>Choose how you'd like to access this course.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
+            {course.price > 0 && (
+              <Button className="w-full gap-2" onClick={handleRazorpayPayment} disabled={paying}>
+                <CreditCard className="w-4 h-4" />
+                {paying ? "Processing..." : `Pay ₹${course.price} Online`}
+              </Button>
+            )}
             {settings?.whatsapp_enabled === "true" && (
               <Button variant="outline" className="w-full gap-2" onClick={handleWhatsApp}>
                 <MessageSquare className="w-4 h-4 text-success" />
