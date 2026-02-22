@@ -83,9 +83,11 @@ Deno.serve(async (req) => {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const { error } = await adminClient.auth.admin.signOut(userId);
+      const { error } = await adminClient.auth.admin.signOut(userId, "global");
       if (error) throw error;
-      return new Response(JSON.stringify({ success: true, message: "User logged out" }), {
+      // Also deactivate all device sessions
+      await adminClient.from("device_sessions").update({ is_active: false }).eq("user_id", userId);
+      return new Response(JSON.stringify({ success: true, message: "User logged out from all devices" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
