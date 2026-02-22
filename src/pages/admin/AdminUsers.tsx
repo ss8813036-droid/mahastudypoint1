@@ -28,9 +28,14 @@ export default function AdminUsers() {
       const { data: profiles } = await supabase.from("profiles").select("*");
       if (!profiles) return [];
       const userIds = profiles.map((p) => p.user_id);
-      const { data: allRoles } = await supabase.from("user_roles").select("user_id, role").in("user_id", userIds);
+      const [{ data: allRoles }, emailRes] = await Promise.all([
+        supabase.from("user_roles").select("user_id, role").in("user_id", userIds),
+        supabase.functions.invoke("admin-user-management", { body: { action: "list_user_emails" } }),
+      ]);
+      const emailMap: Record<string, string> = emailRes.data?.emails || {};
       return profiles.map((p) => ({
         ...p,
+        email: emailMap[p.user_id] || "",
         roles: (allRoles || []).filter((r) => r.user_id === p.user_id).map((r) => r.role),
       }));
     },
@@ -112,7 +117,8 @@ export default function AdminUsers() {
 
   const filtered = users?.filter((u: any) =>
     !search || u.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-    u.branch?.toLowerCase().includes(search.toLowerCase())
+    u.branch?.toLowerCase().includes(search.toLowerCase()) ||
+    u.email?.toLowerCase().includes(search.toLowerCase())
   ) || [];
 
   return (
@@ -140,6 +146,7 @@ export default function AdminUsers() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-semibold text-sm">{u.full_name || "No name"}</p>
+                      <p className="text-[10px] text-primary/80 font-medium">{u.email || "No email"}</p>
                       <p className="text-[10px] text-muted-foreground">Sem {u.semester || "—"} · {u.branch || "—"}</p>
                     </div>
                     <div className="flex gap-1">
