@@ -37,6 +37,18 @@ Deno.serve(async (req) => {
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
     const { action, userId, newPassword } = await req.json();
 
+    if (action === "list_user_emails") {
+      const { data: { users }, error } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+      if (error) throw error;
+      const emailMap: Record<string, string> = {};
+      for (const u of users) {
+        emailMap[u.id] = u.email || "";
+      }
+      return new Response(JSON.stringify({ emails: emailMap }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (action === "change_password") {
       if (!userId || !newPassword) {
         return new Response(JSON.stringify({ error: "userId and newPassword required" }), {
