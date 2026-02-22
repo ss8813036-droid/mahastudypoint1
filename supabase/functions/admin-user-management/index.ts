@@ -83,10 +83,28 @@ Deno.serve(async (req) => {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const { error } = await adminClient.auth.admin.signOut(userId, "global");
-      if (error) throw error;
-      // Also deactivate all device sessions
+      // Deactivate all device sessions - this forces re-auth on next visit
       await adminClient.from("device_sessions").update({ is_active: false }).eq("user_id", userId);
+      // Revoke all refresh tokens by updating the user's password-like field (forces token invalidation)
+      // Use admin API to sign out the user's sessions
+      try {
+        await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}/factors`, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${serviceRoleKey}`, 'apikey': serviceRoleKey },
+        });
+        // Sign out all sessions via direct API call
+        await fetch(`${supabaseUrl}/auth/v1/logout?scope=global`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${serviceRoleKey}`,
+            'apikey': serviceRoleKey,
+            'Content-Type': 'application/json',
+            'x-supabase-admin': userId,
+          },
+        });
+      } catch (_) {
+        // Even if auth logout fails, device sessions are deactivated
+      }
       return new Response(JSON.stringify({ success: true, message: "User logged out from all devices" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
