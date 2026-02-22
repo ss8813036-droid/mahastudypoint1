@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { BookOpen, MessageSquare, Clock, Folder, FileText, Image, ChevronRight, ArrowLeft, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import ShareCourseButton from "@/components/ShareCourseButton";
 
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -211,6 +212,7 @@ export default function CourseDetail() {
           <Link to="/courses" className="absolute top-4 left-4 p-2 rounded-full glass-card">
             <ArrowLeft className="w-4 h-4" />
           </Link>
+          <ShareCourseButton course={course} variant="icon" className="absolute top-4 right-4 p-2 rounded-full glass-card" />
         </div>
 
         <div className="px-4 -mt-8 relative space-y-4">

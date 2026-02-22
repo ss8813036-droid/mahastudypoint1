@@ -6,6 +6,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { BookOpen, Search } from "lucide-react";
+import ShareCourseButton from "@/components/ShareCourseButton";
 import { Link, Navigate } from "react-router-dom";
 
 export default function Courses() {
@@ -84,11 +85,16 @@ export default function Courses() {
                     </div>
                   )}
                   <CardContent className="p-3">
-                    <p className="text-sm font-semibold truncate">{course.title}</p>
-                    <p className="text-[10px] text-muted-foreground">Sem {course.semester} · {course.subject}</p>
-                    <p className="text-xs font-bold text-primary mt-1">
-                      {course.price > 0 ? `₹${course.price}` : "Free"}
-                    </p>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate">{course.title}</p>
+                        <p className="text-[10px] text-muted-foreground">Sem {course.semester} · {course.subject}</p>
+                        <p className="text-xs font-bold text-primary mt-1">
+                          {course.price > 0 ? `₹${course.price}` : "Free"}
+                        </p>
+                      </div>
+                      <ShareCourseButton course={course} variant="icon" className="p-1.5 rounded-full hover:bg-muted transition-colors" />
+                    </div>
                   </CardContent>
                 </Card>
               </Link>
