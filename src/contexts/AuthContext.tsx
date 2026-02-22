@@ -51,17 +51,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadUserData = async (userId: string) => {
+  const loadUserData = async (currentUser: User) => {
     const [userRoles, userProfile] = await Promise.all([
-      getUserRole(userId),
-      getUserProfile(userId),
+      getUserRole(currentUser.id),
+      getUserProfile(currentUser.id),
     ]);
+    
+    // If no profile exists (e.g. new Google OAuth user), create one
+    if (!userProfile) {
+      const fullName = currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || currentUser.email?.split('@')[0] || '';
+      await supabase.from("profiles").upsert({ 
+        user_id: currentUser.id, 
+        full_name: fullName 
+      }, { onConflict: "user_id" });
+      const refreshed = await getUserProfile(currentUser.id);
+      setProfile(refreshed as Profile | null);
+    } else {
+      setProfile(userProfile as Profile | null);
+    }
+    
     setRoles(userRoles as AppRole[]);
-    setProfile(userProfile as Profile | null);
   };
 
   const refreshProfile = async () => {
-    if (user) await loadUserData(user.id);
+    if (user) await loadUserData(user);
   };
 
   useEffect(() => {
@@ -75,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Use setTimeout to avoid Supabase auth deadlock
           setTimeout(async () => {
             try {
-              await loadUserData(session.user.id);
+              await loadUserData(session.user);
               
               // Run device check in background - don't block login
               if (event === "SIGNED_IN") {
@@ -107,7 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        loadUserData(session.user.id).finally(() => setLoading(false));
+        loadUserData(session.user).finally(() => setLoading(false));
       } else {
         setLoading(false);
       }
