@@ -7,8 +7,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Navigate, Link } from "react-router-dom";
-import { ArrowLeft, Save, MessageCircle } from "lucide-react";
+import { ArrowLeft, Save, MessageCircle, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminSettings() {
@@ -18,6 +19,7 @@ export default function AdminSettings() {
   const [whatsappTemplate, setWhatsappTemplate] = useState("");
   const [whatsappEnabled, setWhatsappEnabled] = useState(true);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [watermarkType, setWatermarkType] = useState("email");
 
   const { data: settings } = useQuery({
     queryKey: ["admin-settings"],
@@ -29,7 +31,6 @@ export default function AdminSettings() {
     },
   });
 
-  // Courses for chat toggle
   const { data: courses } = useQuery({
     queryKey: ["admin-courses-chat"],
     queryFn: async () => {
@@ -44,6 +45,7 @@ export default function AdminSettings() {
       setWhatsappTemplate(settings.whatsapp_message_template || "");
       setWhatsappEnabled(settings.whatsapp_enabled === "true");
       setMaintenanceMode(settings.maintenance_mode === "true");
+      setWatermarkType(settings.watermark_type || "email");
     }
   }, [settings]);
 
@@ -79,6 +81,7 @@ export default function AdminSettings() {
         saveSetting.mutateAsync({ key: "whatsapp_message_template", value: whatsappTemplate }),
         saveSetting.mutateAsync({ key: "whatsapp_enabled", value: whatsappEnabled ? "true" : "false" }),
         saveSetting.mutateAsync({ key: "maintenance_mode", value: maintenanceMode ? "true" : "false" }),
+        saveSetting.mutateAsync({ key: "watermark_type", value: watermarkType }),
       ]);
       toast.success("All settings saved!");
     } catch (e: any) {
@@ -93,6 +96,26 @@ export default function AdminSettings() {
           <Link to="/" className="p-2 rounded-full glass-card"><ArrowLeft className="w-4 h-4" /></Link>
           <h1 className="text-lg font-display font-bold">Settings</h1>
         </div>
+
+        {/* Watermark Settings */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-4">
+            <h2 className="text-sm font-display font-semibold flex items-center gap-2">
+              <FileText className="w-4 h-4" /> Watermark Settings
+            </h2>
+            <p className="text-xs text-muted-foreground">Choose what appears as watermark on PDFs and images.</p>
+            <Select value={watermarkType} onValueChange={setWatermarkType}>
+              <SelectTrigger className="bg-muted/50"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="email">User Email</SelectItem>
+                <SelectItem value="name">User Name</SelectItem>
+                <SelectItem value="both">Name + Email</SelectItem>
+                <SelectItem value="none">No Watermark</SelectItem>
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
             <h2 className="text-sm font-display font-semibold">WhatsApp Settings</h2>
@@ -104,6 +127,7 @@ export default function AdminSettings() {
             <Input value={whatsappTemplate} onChange={(e) => setWhatsappTemplate(e.target.value)} placeholder="Message template ({course_name}, {student_name})" className="bg-muted/50" maxLength={500} />
           </CardContent>
         </Card>
+
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
             <h2 className="text-sm font-display font-semibold">App Settings</h2>
