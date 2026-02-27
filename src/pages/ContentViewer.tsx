@@ -73,8 +73,6 @@ export default function ContentViewer() {
   const [totalPages, setTotalPages] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
-  const renderedPages = useRef<Set<number>>(new Set());
-  const renderingPages = useRef<Set<number>>(new Set());
   const lastDistRef = useRef<number | null>(null);
   const baseZoomRef = useRef(1);
   const zoomTimeoutRef = useRef<any>(null);
@@ -114,8 +112,8 @@ export default function ContentViewer() {
           const doc = await pdfjsLib.getDocument(item.file_url).promise;
           setPdfDoc(doc);
           setTotalPages(doc.numPages);
-          renderedPages.current.clear();
-          renderingPages.current.clear();
+          renderTasksRef.current.forEach(t => { try { t.cancel(); } catch {} });
+          renderTasksRef.current.clear();
         } catch (err) {
           console.error("Failed to load PDF:", err);
         }
@@ -124,30 +122,40 @@ export default function ContentViewer() {
     }
   }, [item]);
 
+  const renderTasksRef = useRef<Map<number, any>>(new Map());
+
   const renderPage = useCallback(async (pageNum: number, currentZoom: number) => {
     if (!pdfDoc) return;
-    if (renderingPages.current.has(pageNum)) return;
     const canvas = canvasRefs.current.get(pageNum);
     if (!canvas) return;
-    renderingPages.current.add(pageNum);
+
+    // Cancel any in-progress render for this page
+    const existingTask = renderTasksRef.current.get(pageNum);
+    if (existingTask) {
+      try { existingTask.cancel(); } catch {}
+    }
+
     try {
       const page = await pdfDoc.getPage(pageNum);
       const viewport = page.getViewport({ scale: currentZoom * 1.5 });
       const context = canvas.getContext("2d")!;
       canvas.height = viewport.height;
       canvas.width = viewport.width;
-      await page.render({ canvasContext: context, viewport }).promise;
-      renderedPages.current.add(pageNum);
-    } catch (err) {
-      console.error(`Failed to render page ${pageNum}:`, err);
-    } finally {
-      renderingPages.current.delete(pageNum);
+      const renderTask = page.render({ canvasContext: context, viewport });
+      renderTasksRef.current.set(pageNum, renderTask);
+      await renderTask.promise;
+      renderTasksRef.current.delete(pageNum);
+    } catch (err: any) {
+      if (err?.name !== "RenderingCancelledException") {
+        console.error(`Failed to render page ${pageNum}:`, err);
+      }
     }
   }, [pdfDoc]);
 
   useEffect(() => {
     if (!pdfDoc) return;
-    renderedPages.current.clear();
+    renderTasksRef.current.forEach(t => { try { t.cancel(); } catch {} });
+    renderTasksRef.current.clear();
     for (let i = 1; i <= totalPages; i++) {
       renderPage(i, zoom);
     }
