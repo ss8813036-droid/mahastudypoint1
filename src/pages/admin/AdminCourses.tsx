@@ -45,6 +45,7 @@ export default function AdminCourses() {
         price: parseFloat(price) || 0,
         validity_days: validity && validity !== "lifetime" ? parseInt(validity) : null,
         payment_link: paymentLink.trim() || null,
+        payment_mode: paymentMode,
         created_by: user!.id,
       });
       if (error) throw error;
