@@ -1,0 +1,1 @@
+ALTER TABLE public.courses ADD COLUMN payment_mode text NOT NULL DEFAULT 'razorpay';
