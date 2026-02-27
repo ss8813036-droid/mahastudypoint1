@@ -43,6 +43,7 @@ export default function AdminCourses() {
         subject: subject.trim() || null,
         price: parseFloat(price) || 0,
         validity_days: validity && validity !== "lifetime" ? parseInt(validity) : null,
+        payment_link: paymentLink.trim() || null,
         created_by: user!.id,
       });
       if (error) throw error;
