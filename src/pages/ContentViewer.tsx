@@ -161,6 +161,9 @@ export default function ContentViewer() {
     }
   }, [pdfDoc, zoom, totalPages, renderPage]);
 
+  const zoomRef = useRef(zoom);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+
   useEffect(() => {
     if (!zoomEnabled) return;
     const container = containerRef.current;
@@ -171,7 +174,7 @@ export default function ContentViewer() {
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         lastDistRef.current = Math.hypot(dx, dy);
-        baseZoomRef.current = zoom;
+        baseZoomRef.current = zoomRef.current;
       }
     };
     const handleTouchMove = (e: TouchEvent) => {
@@ -182,12 +185,10 @@ export default function ContentViewer() {
         const dist = Math.hypot(dx, dy);
         const scale = dist / lastDistRef.current;
         const newZoom = Math.min(3, Math.max(0.5, baseZoomRef.current * scale));
-        container.style.setProperty("--pinch-scale", String(newZoom / zoom));
         if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
         zoomTimeoutRef.current = setTimeout(() => {
-          container.style.removeProperty("--pinch-scale");
           setZoom(newZoom);
-        }, 200);
+        }, 150);
       }
     };
     const handleTouchEnd = () => { lastDistRef.current = null; };
@@ -199,7 +200,7 @@ export default function ContentViewer() {
       container.removeEventListener("touchmove", handleTouchMove);
       container.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [zoom, zoomEnabled]);
+  }, [zoomEnabled]);
 
   const setCanvasRef = useCallback((pageNum: number) => (el: HTMLCanvasElement | null) => {
     if (el) canvasRefs.current.set(pageNum, el);
