@@ -124,24 +124,33 @@ export default function ContentViewer() {
     }
   }, [item]);
 
+  const renderTasksRef = useRef<Map<number, any>>(new Map());
+
   const renderPage = useCallback(async (pageNum: number, currentZoom: number) => {
     if (!pdfDoc) return;
-    if (renderingPages.current.has(pageNum)) return;
     const canvas = canvasRefs.current.get(pageNum);
     if (!canvas) return;
-    renderingPages.current.add(pageNum);
+
+    // Cancel any in-progress render for this page
+    const existingTask = renderTasksRef.current.get(pageNum);
+    if (existingTask) {
+      try { existingTask.cancel(); } catch {}
+    }
+
     try {
       const page = await pdfDoc.getPage(pageNum);
       const viewport = page.getViewport({ scale: currentZoom * 1.5 });
       const context = canvas.getContext("2d")!;
       canvas.height = viewport.height;
       canvas.width = viewport.width;
-      await page.render({ canvasContext: context, viewport }).promise;
-      renderedPages.current.add(pageNum);
-    } catch (err) {
-      console.error(`Failed to render page ${pageNum}:`, err);
-    } finally {
-      renderingPages.current.delete(pageNum);
+      const renderTask = page.render({ canvasContext: context, viewport });
+      renderTasksRef.current.set(pageNum, renderTask);
+      await renderTask.promise;
+      renderTasksRef.current.delete(pageNum);
+    } catch (err: any) {
+      if (err?.name !== "RenderingCancelledException") {
+        console.error(`Failed to render page ${pageNum}:`, err);
+      }
     }
   }, [pdfDoc]);
 
