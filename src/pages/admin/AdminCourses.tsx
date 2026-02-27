@@ -144,7 +144,21 @@ export default function AdminCourses() {
                 </SelectContent>
               </Select>
             </div>
-            <Input value={paymentLink} onChange={(e) => setPaymentLink(e.target.value)} placeholder="Payment Link (Pay Online URL)" className="bg-muted/50" maxLength={500} />
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Payment Method</label>
+              <Select value={paymentMode} onValueChange={setPaymentMode}>
+                <SelectTrigger className="bg-muted/50"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="razorpay">Razorpay</SelectItem>
+                  <SelectItem value="payment_link">Payment Link</SelectItem>
+                  <SelectItem value="both">Both</SelectItem>
+                  <SelectItem value="none">Free (No Payment)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {(paymentMode === "payment_link" || paymentMode === "both") && (
+              <Input value={paymentLink} onChange={(e) => setPaymentLink(e.target.value)} placeholder="Payment Link (Pay Online URL)" className="bg-muted/50" maxLength={500} />
+            )}
             <Button className="w-full" onClick={() => createCourse.mutate()} disabled={!title.trim()}>Create Course</Button>
           </div>
         </DialogContent>
