@@ -297,6 +297,7 @@ export type Database = {
           id: string
           is_launched: boolean
           payment_link: string | null
+          payment_mode: string
           price: number
           semester: number | null
           subject: string | null
@@ -313,6 +314,7 @@ export type Database = {
           id?: string
           is_launched?: boolean
           payment_link?: string | null
+          payment_mode?: string
           price?: number
           semester?: number | null
           subject?: string | null
@@ -329,6 +331,7 @@ export type Database = {
           id?: string
           is_launched?: boolean
           payment_link?: string | null
+          payment_mode?: string
           price?: number
           semester?: number | null
           subject?: string | null

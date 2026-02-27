@@ -23,6 +23,7 @@ export default function AdminCourses() {
   const [price, setPrice] = useState("0");
   const [validity, setValidity] = useState("");
   const [paymentLink, setPaymentLink] = useState("");
+  const [paymentMode, setPaymentMode] = useState("razorpay");
 
   if (!isAdmin) return <Navigate to="/" replace />;
 
@@ -44,6 +45,7 @@ export default function AdminCourses() {
         price: parseFloat(price) || 0,
         validity_days: validity && validity !== "lifetime" ? parseInt(validity) : null,
         payment_link: paymentLink.trim() || null,
+        payment_mode: paymentMode,
         created_by: user!.id,
       });
       if (error) throw error;
@@ -52,7 +54,7 @@ export default function AdminCourses() {
       queryClient.invalidateQueries({ queryKey: ["admin-courses"] });
       toast.success("Course created!");
       setShowCreate(false);
-      setTitle(""); setDescription(""); setSemester(""); setSubject(""); setPrice("0"); setValidity(""); setPaymentLink("");
+      setTitle(""); setDescription(""); setSemester(""); setSubject(""); setPrice("0"); setValidity(""); setPaymentLink(""); setPaymentMode("razorpay");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -142,7 +144,21 @@ export default function AdminCourses() {
                 </SelectContent>
               </Select>
             </div>
-            <Input value={paymentLink} onChange={(e) => setPaymentLink(e.target.value)} placeholder="Payment Link (Pay Online URL)" className="bg-muted/50" maxLength={500} />
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Payment Method</label>
+              <Select value={paymentMode} onValueChange={setPaymentMode}>
+                <SelectTrigger className="bg-muted/50"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="razorpay">Razorpay</SelectItem>
+                  <SelectItem value="payment_link">Payment Link</SelectItem>
+                  <SelectItem value="both">Both</SelectItem>
+                  <SelectItem value="none">Free (No Payment)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {(paymentMode === "payment_link" || paymentMode === "both") && (
+              <Input value={paymentLink} onChange={(e) => setPaymentLink(e.target.value)} placeholder="Payment Link (Pay Online URL)" className="bg-muted/50" maxLength={500} />
+            )}
             <Button className="w-full" onClick={() => createCourse.mutate()} disabled={!title.trim()}>Create Course</Button>
           </div>
         </DialogContent>
