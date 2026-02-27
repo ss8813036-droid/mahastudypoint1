@@ -154,7 +154,8 @@ export default function ContentViewer() {
 
   useEffect(() => {
     if (!pdfDoc) return;
-    renderedPages.current.clear();
+    renderTasksRef.current.forEach(t => { try { t.cancel(); } catch {} });
+    renderTasksRef.current.clear();
     for (let i = 1; i <= totalPages; i++) {
       renderPage(i, zoom);
     }
