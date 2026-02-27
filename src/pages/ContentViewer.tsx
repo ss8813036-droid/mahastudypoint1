@@ -112,8 +112,8 @@ export default function ContentViewer() {
           const doc = await pdfjsLib.getDocument(item.file_url).promise;
           setPdfDoc(doc);
           setTotalPages(doc.numPages);
-          renderedPages.current.clear();
-          renderingPages.current.clear();
+          renderTasksRef.current.forEach(t => { try { t.cancel(); } catch {} });
+          renderTasksRef.current.clear();
         } catch (err) {
           console.error("Failed to load PDF:", err);
         }
