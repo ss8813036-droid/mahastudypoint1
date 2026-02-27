@@ -8,18 +8,34 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { Navigate, Link } from "react-router-dom";
-import { ArrowLeft, Save, MessageCircle, FileText } from "lucide-react";
+import { ArrowLeft, Save, MessageCircle, FileText, Shield, CreditCard, Share2, ZoomIn, UserPlus, KeyRound, LogIn } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminSettings() {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
+
+  // WhatsApp
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [whatsappTemplate, setWhatsappTemplate] = useState("");
   const [whatsappEnabled, setWhatsappEnabled] = useState(true);
+
+  // App toggles
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [razorpayEnabled, setRazorpayEnabled] = useState(true);
+  const [googleSigninEnabled, setGoogleSigninEnabled] = useState(true);
+  const [forgotPasswordEnabled, setForgotPasswordEnabled] = useState(true);
+  const [shareEnabled, setShareEnabled] = useState(true);
+  const [zoomEnabled, setZoomEnabled] = useState(true);
+  const [signupEnabled, setSignupEnabled] = useState(true);
+
+  // Watermark
   const [watermarkType, setWatermarkType] = useState("email");
+  const [watermarkIntensity, setWatermarkIntensity] = useState("medium");
+  const [watermarkPosition, setWatermarkPosition] = useState("diagonal");
+  const [watermarkCount, setWatermarkCount] = useState("10");
 
   const { data: settings } = useQuery({
     queryKey: ["admin-settings"],
@@ -43,9 +59,18 @@ export default function AdminSettings() {
     if (settings) {
       setWhatsappNumber(settings.whatsapp_number || "");
       setWhatsappTemplate(settings.whatsapp_message_template || "");
-      setWhatsappEnabled(settings.whatsapp_enabled === "true");
+      setWhatsappEnabled(settings.whatsapp_enabled !== "false");
       setMaintenanceMode(settings.maintenance_mode === "true");
+      setRazorpayEnabled(settings.razorpay_enabled !== "false");
+      setGoogleSigninEnabled(settings.google_signin_enabled !== "false");
+      setForgotPasswordEnabled(settings.forgot_password_enabled !== "false");
+      setShareEnabled(settings.share_enabled !== "false");
+      setZoomEnabled(settings.zoom_enabled !== "false");
+      setSignupEnabled(settings.signup_enabled !== "false");
       setWatermarkType(settings.watermark_type || "email");
+      setWatermarkIntensity(settings.watermark_intensity || "medium");
+      setWatermarkPosition(settings.watermark_position || "diagonal");
+      setWatermarkCount(settings.watermark_count || "10");
     }
   }, [settings]);
 
@@ -58,6 +83,7 @@ export default function AdminSettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["app-settings"] });
     },
   });
 
@@ -81,7 +107,16 @@ export default function AdminSettings() {
         saveSetting.mutateAsync({ key: "whatsapp_message_template", value: whatsappTemplate }),
         saveSetting.mutateAsync({ key: "whatsapp_enabled", value: whatsappEnabled ? "true" : "false" }),
         saveSetting.mutateAsync({ key: "maintenance_mode", value: maintenanceMode ? "true" : "false" }),
+        saveSetting.mutateAsync({ key: "razorpay_enabled", value: razorpayEnabled ? "true" : "false" }),
+        saveSetting.mutateAsync({ key: "google_signin_enabled", value: googleSigninEnabled ? "true" : "false" }),
+        saveSetting.mutateAsync({ key: "forgot_password_enabled", value: forgotPasswordEnabled ? "true" : "false" }),
+        saveSetting.mutateAsync({ key: "share_enabled", value: shareEnabled ? "true" : "false" }),
+        saveSetting.mutateAsync({ key: "zoom_enabled", value: zoomEnabled ? "true" : "false" }),
+        saveSetting.mutateAsync({ key: "signup_enabled", value: signupEnabled ? "true" : "false" }),
         saveSetting.mutateAsync({ key: "watermark_type", value: watermarkType }),
+        saveSetting.mutateAsync({ key: "watermark_intensity", value: watermarkIntensity }),
+        saveSetting.mutateAsync({ key: "watermark_position", value: watermarkPosition }),
+        saveSetting.mutateAsync({ key: "watermark_count", value: watermarkCount }),
       ]);
       toast.success("All settings saved!");
     } catch (e: any) {
@@ -89,13 +124,40 @@ export default function AdminSettings() {
     }
   };
 
+  const ToggleRow = ({ label, icon: Icon, checked, onChange }: { label: string; icon: any; checked: boolean; onChange: (v: boolean) => void }) => (
+    <div className="flex items-center justify-between py-2">
+      <div className="flex items-center gap-2">
+        <Icon className="w-4 h-4 text-muted-foreground" />
+        <span className="text-sm">{label}</span>
+      </div>
+      <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+
   return (
     <AppLayout showNav={false}>
-      <div className="p-4 space-y-4">
+      <div className="p-4 space-y-4 pb-24">
         <div className="flex items-center gap-3">
           <Link to="/" className="p-2 rounded-full glass-card"><ArrowLeft className="w-4 h-4" /></Link>
-          <h1 className="text-lg font-display font-bold">Settings</h1>
+          <h1 className="text-lg font-display font-bold">Admin Settings</h1>
         </div>
+
+        {/* Feature Toggles */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-1">
+            <h2 className="text-sm font-display font-semibold flex items-center gap-2 mb-2">
+              <Shield className="w-4 h-4" /> Feature Controls
+            </h2>
+            <p className="text-xs text-muted-foreground mb-3">Enable or disable app features globally.</p>
+            <ToggleRow label="Razorpay Payment" icon={CreditCard} checked={razorpayEnabled} onChange={setRazorpayEnabled} />
+            <ToggleRow label="Google Sign-In" icon={LogIn} checked={googleSigninEnabled} onChange={setGoogleSigninEnabled} />
+            <ToggleRow label="Forgot Password" icon={KeyRound} checked={forgotPasswordEnabled} onChange={setForgotPasswordEnabled} />
+            <ToggleRow label="User Signup" icon={UserPlus} checked={signupEnabled} onChange={setSignupEnabled} />
+            <ToggleRow label="Share Course" icon={Share2} checked={shareEnabled} onChange={setShareEnabled} />
+            <ToggleRow label="PDF/Image Zoom" icon={ZoomIn} checked={zoomEnabled} onChange={setZoomEnabled} />
+            <ToggleRow label="Maintenance Mode" icon={Shield} checked={maintenanceMode} onChange={setMaintenanceMode} />
+          </CardContent>
+        </Card>
 
         {/* Watermark Settings */}
         <Card className="glass-card">
@@ -103,38 +165,68 @@ export default function AdminSettings() {
             <h2 className="text-sm font-display font-semibold flex items-center gap-2">
               <FileText className="w-4 h-4" /> Watermark Settings
             </h2>
-            <p className="text-xs text-muted-foreground">Choose what appears as watermark on PDFs and images.</p>
-            <Select value={watermarkType} onValueChange={setWatermarkType}>
-              <SelectTrigger className="bg-muted/50"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="email">User Email</SelectItem>
-                <SelectItem value="name">User Name</SelectItem>
-                <SelectItem value="both">Name + Email</SelectItem>
-                <SelectItem value="none">No Watermark</SelectItem>
-              </SelectContent>
-            </Select>
+
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Watermark Content</label>
+              <Select value={watermarkType} onValueChange={setWatermarkType}>
+                <SelectTrigger className="bg-muted/50"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="email">User Email</SelectItem>
+                  <SelectItem value="name">User Name</SelectItem>
+                  <SelectItem value="both">Name + Email</SelectItem>
+                  <SelectItem value="none">No Watermark</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Intensity / Opacity</label>
+              <Select value={watermarkIntensity} onValueChange={setWatermarkIntensity}>
+                <SelectTrigger className="bg-muted/50"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="light">Light (20%)</SelectItem>
+                  <SelectItem value="medium">Medium (40%)</SelectItem>
+                  <SelectItem value="heavy">Heavy (60%)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Position / Layout</label>
+              <Select value={watermarkPosition} onValueChange={setWatermarkPosition}>
+                <SelectTrigger className="bg-muted/50"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="diagonal">Diagonal Grid</SelectItem>
+                  <SelectItem value="center">Center Only</SelectItem>
+                  <SelectItem value="corners">Four Corners</SelectItem>
+                  <SelectItem value="grid">Straight Grid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Number of Watermarks: {watermarkCount}</label>
+              <Slider
+                value={[parseInt(watermarkCount) || 10]}
+                onValueChange={(v) => setWatermarkCount(String(v[0]))}
+                min={1}
+                max={30}
+                step={1}
+                className="py-2"
+              />
+            </div>
           </CardContent>
         </Card>
 
+        {/* WhatsApp Settings */}
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
-            <h2 className="text-sm font-display font-semibold">WhatsApp Settings</h2>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Enable WhatsApp</span>
-              <Switch checked={whatsappEnabled} onCheckedChange={setWhatsappEnabled} />
-            </div>
+            <h2 className="text-sm font-display font-semibold flex items-center gap-2">
+              <MessageCircle className="w-4 h-4" /> WhatsApp Settings
+            </h2>
+            <ToggleRow label="Enable WhatsApp" icon={MessageCircle} checked={whatsappEnabled} onChange={setWhatsappEnabled} />
             <Input value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value)} placeholder="WhatsApp Number (e.g. 919876543210)" className="bg-muted/50" maxLength={20} />
             <Input value={whatsappTemplate} onChange={(e) => setWhatsappTemplate(e.target.value)} placeholder="Message template ({course_name}, {student_name})" className="bg-muted/50" maxLength={500} />
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card">
-          <CardContent className="p-4 space-y-4">
-            <h2 className="text-sm font-display font-semibold">App Settings</h2>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Maintenance Mode</span>
-              <Switch checked={maintenanceMode} onCheckedChange={setMaintenanceMode} />
-            </div>
           </CardContent>
         </Card>
 
