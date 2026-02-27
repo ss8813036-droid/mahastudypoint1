@@ -137,10 +137,10 @@ export default function Auth() {
                   </button>
                 </p>
               )}
-              {!signupAllowed && mode === "signup" && (
-                <>
-                  {setMode("login")}
-                </>
+              {!signupAllowed && mode === "login" && (
+                <p className="text-center text-sm text-muted-foreground">
+                  Contact admin for account access.
+                </p>
               )}
             </>
           )}
