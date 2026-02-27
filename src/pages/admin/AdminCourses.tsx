@@ -22,6 +22,7 @@ export default function AdminCourses() {
   const [subject, setSubject] = useState("");
   const [price, setPrice] = useState("0");
   const [validity, setValidity] = useState("");
+  const [paymentLink, setPaymentLink] = useState("");
 
   if (!isAdmin) return <Navigate to="/" replace />;
 
