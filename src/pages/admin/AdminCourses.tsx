@@ -142,6 +142,7 @@ export default function AdminCourses() {
                 </SelectContent>
               </Select>
             </div>
+            <Input value={paymentLink} onChange={(e) => setPaymentLink(e.target.value)} placeholder="Payment Link (Pay Online URL)" className="bg-muted/50" maxLength={500} />
             <Button className="w-full" onClick={() => createCourse.mutate()} disabled={!title.trim()}>Create Course</Button>
           </div>
         </DialogContent>
