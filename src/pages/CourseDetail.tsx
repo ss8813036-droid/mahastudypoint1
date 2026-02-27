@@ -3,6 +3,7 @@ import { useParams, Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppSettings } from "@/hooks/use-app-settings";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,12 +17,15 @@ import ShareCourseButton from "@/components/ShareCourseButton";
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const { isEnabled, settings } = useAppSettings();
   const [showPurchase, setShowPurchase] = useState(false);
   const [token, setToken] = useState("");
   const [redeeming, setRedeeming] = useState(false);
   const [paying, setPaying] = useState(false);
 
-  // Early return moved after all hooks below
+  const razorpayEnabled = isEnabled("razorpay_enabled");
+  const shareEnabled = isEnabled("share_enabled");
+  const whatsappEnabled = isEnabled("whatsapp_enabled");
 
   const { data: course } = useQuery({
     queryKey: ["course", id],
@@ -33,13 +37,13 @@ export default function CourseDetail() {
   });
 
   const { data: enrollment, refetch: refetchEnrollment } = useQuery({
-    queryKey: ["enrollment", id, user.id],
+    queryKey: ["enrollment", id, user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("enrollments")
         .select("*")
         .eq("course_id", id!)
-        .eq("user_id", user.id)
+        .eq("user_id", user!.id)
         .maybeSingle();
       return data;
     },
@@ -74,22 +78,11 @@ export default function CourseDetail() {
     enabled: !!id && !!enrollment,
   });
 
-  const { data: settings } = useQuery({
-    queryKey: ["app-settings"],
-    queryFn: async () => {
-      const { data } = await supabase.from("app_settings").select("*");
-      const map: Record<string, string> = {};
-      data?.forEach((s: any) => { map[s.key] = s.value; });
-      return map;
-    },
-  });
-
   const handleWhatsApp = () => {
     if (!settings?.whatsapp_number) {
       toast.error("WhatsApp is not configured yet");
       return;
     }
-    // Clean phone number - remove spaces, +, etc
     const cleanNumber = (settings.whatsapp_number || "").replace(/[^0-9]/g, "");
     const msg = (settings.whatsapp_message_template || "I want to buy {course_name}")
       .replace(/\{course_name\}/gi, course?.title || "")
@@ -132,8 +125,6 @@ export default function CourseDetail() {
         setPaying(false);
         return;
       }
-
-      // Load Razorpay script dynamically
       if (!(window as any).Razorpay) {
         const script = document.createElement("script");
         script.src = "https://checkout.razorpay.com/v1/checkout.js";
@@ -144,7 +135,6 @@ export default function CourseDetail() {
           document.body.appendChild(script);
         });
       }
-
       const options = {
         key: data.keyId,
         amount: data.amount,
@@ -153,7 +143,6 @@ export default function CourseDetail() {
         description: data.courseName,
         order_id: data.orderId,
         handler: async (response: any) => {
-          // Verify payment
           const { data: verifyData, error: verifyError } = await supabase.functions.invoke("verify-razorpay-payment", {
             body: {
               razorpay_order_id: response.razorpay_order_id,
@@ -171,17 +160,10 @@ export default function CourseDetail() {
           }
           setPaying(false);
         },
-        modal: {
-          ondismiss: () => setPaying(false),
-        },
-        prefill: {
-          email: user.email,
-        },
-        theme: {
-          color: "#3B82F6",
-        },
+        modal: { ondismiss: () => setPaying(false) },
+        prefill: { email: user.email },
+        theme: { color: "#3B82F6" },
       };
-
       const rzp = new (window as any).Razorpay(options);
       rzp.open();
     } catch (err: any) {
@@ -199,7 +181,6 @@ export default function CourseDetail() {
   return (
     <AppLayout>
       <div className="space-y-4">
-        {/* Hero */}
         <div className="relative">
           {course.thumbnail_url ? (
             <img src={course.thumbnail_url} alt="" className="w-full h-48 object-cover" />
@@ -212,7 +193,9 @@ export default function CourseDetail() {
           <Link to="/courses" className="absolute top-4 left-4 p-2 rounded-full glass-card">
             <ArrowLeft className="w-4 h-4" />
           </Link>
-          <ShareCourseButton course={course} variant="icon" className="absolute top-4 right-4 p-2 rounded-full glass-card" />
+          {shareEnabled && (
+            <ShareCourseButton course={course} variant="icon" className="absolute top-4 right-4 p-2 rounded-full glass-card" />
+          )}
         </div>
 
         <div className="px-4 -mt-8 relative space-y-4">
@@ -242,7 +225,6 @@ export default function CourseDetail() {
             </Button>
           ) : null}
 
-          {/* Content - only if enrolled */}
           {isEnrolled && (
             <div className="space-y-3">
               <h2 className="text-base font-display font-semibold">Course Content</h2>
@@ -283,7 +265,6 @@ export default function CourseDetail() {
         </div>
       </div>
 
-      {/* Purchase Dialog */}
       <Dialog open={showPurchase} onOpenChange={setShowPurchase}>
         <DialogContent className="glass-card border-border/50 max-w-sm">
           <DialogHeader>
@@ -291,13 +272,13 @@ export default function CourseDetail() {
             <DialogDescription>Choose how you'd like to access this course.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            {course.price > 0 && (
+            {course.price > 0 && razorpayEnabled && (
               <Button className="w-full gap-2" onClick={handleRazorpayPayment} disabled={paying}>
                 <CreditCard className="w-4 h-4" />
                 {paying ? "Processing..." : `Pay ₹${course.price} Online`}
               </Button>
             )}
-            {settings?.whatsapp_enabled === "true" && (
+            {whatsappEnabled && (
               <Button variant="outline" className="w-full gap-2" onClick={handleWhatsApp}>
                 <MessageSquare className="w-4 h-4 text-success" />
                 Contact on WhatsApp

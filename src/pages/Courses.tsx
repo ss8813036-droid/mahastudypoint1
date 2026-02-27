@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppSettings } from "@/hooks/use-app-settings";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,8 +12,11 @@ import { Link, Navigate } from "react-router-dom";
 
 export default function Courses() {
   const { user } = useAuth();
+  const { isEnabled } = useAppSettings();
   const [search, setSearch] = useState("");
   const [semester, setSemester] = useState<number | null>(null);
+
+  const shareEnabled = isEnabled("share_enabled");
 
   if (!user) return <Navigate to="/auth" replace />;
 
@@ -93,7 +97,9 @@ export default function Courses() {
                           {course.price > 0 ? `₹${course.price}` : "Free"}
                         </p>
                       </div>
-                      <ShareCourseButton course={course} variant="icon" className="p-1.5 rounded-full hover:bg-muted transition-colors" />
+                      {shareEnabled && (
+                        <ShareCourseButton course={course} variant="icon" className="p-1.5 rounded-full hover:bg-muted transition-colors" />
+                      )}
                     </div>
                   </CardContent>
                 </Card>

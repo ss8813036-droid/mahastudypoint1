@@ -2,6 +2,7 @@ import { useParams, Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppSettings } from "@/hooks/use-app-settings";
 import { ArrowLeft, Download, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -9,15 +10,55 @@ import * as pdfjsLib from "pdfjs-dist";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
-function Watermark({ text }: { text: string }) {
-  const positions = Array.from({ length: 20 }, (_, i) => ({
-    top: `${(i % 5) * 25 + 5}%`,
-    left: `${Math.floor(i / 5) * 30 + 5}%`,
-  }));
+function Watermark({ text, intensity, position, count }: { text: string; intensity: string; position: string; count: number }) {
+  const opacityMap: Record<string, string> = { light: "0.15", medium: "0.3", heavy: "0.5" };
+  const opacity = opacityMap[intensity] || "0.3";
+
+  const getPositions = () => {
+    if (position === "center") {
+      return [{ top: "50%", left: "50%", transform: "translate(-50%, -50%) rotate(-30deg)" }];
+    }
+    if (position === "corners") {
+      return [
+        { top: "8%", left: "8%", transform: "rotate(-30deg)" },
+        { top: "8%", right: "8%", left: "auto", transform: "rotate(-30deg)" },
+        { bottom: "8%", top: "auto", left: "8%", transform: "rotate(-30deg)" },
+        { bottom: "8%", top: "auto", right: "8%", left: "auto", transform: "rotate(-30deg)" },
+      ];
+    }
+    // diagonal or grid
+    const items: any[] = [];
+    const cols = Math.ceil(Math.sqrt(count));
+    const rows = Math.ceil(count / cols);
+    for (let i = 0; i < count; i++) {
+      const row = Math.floor(i / cols);
+      const col = i % cols;
+      items.push({
+        top: `${(row / rows) * 80 + 10}%`,
+        left: `${(col / cols) * 80 + 10}%`,
+        transform: position === "diagonal" ? "rotate(-30deg)" : "rotate(0deg)",
+      });
+    }
+    return items;
+  };
+
+  const positions_list = getPositions();
+
   return (
-    <div className="watermark-overlay">
-      {positions.map((pos, i) => (
-        <span key={i} className="watermark-text" style={{ top: pos.top, left: pos.left }}>{text}</span>
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
+      {positions_list.map((pos, i) => (
+        <span
+          key={i}
+          className="absolute text-xs font-medium select-none whitespace-nowrap"
+          style={{
+            ...pos,
+            opacity,
+            color: "currentColor",
+            fontSize: "11px",
+          }}
+        >
+          {text}
+        </span>
       ))}
     </div>
   );
@@ -26,6 +67,7 @@ function Watermark({ text }: { text: string }) {
 export default function ContentViewer() {
   const { id } = useParams<{ id: string }>();
   const { user, profile } = useAuth();
+  const { getValue } = useAppSettings();
   const [zoom, setZoom] = useState(1);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [totalPages, setTotalPages] = useState(0);
@@ -33,11 +75,15 @@ export default function ContentViewer() {
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const renderedPages = useRef<Set<number>>(new Set());
   const renderingPages = useRef<Set<number>>(new Set());
-
-  // Pinch-to-zoom state
   const lastDistRef = useRef<number | null>(null);
   const baseZoomRef = useRef(1);
   const zoomTimeoutRef = useRef<any>(null);
+
+  const watermarkType = getValue("watermark_type", "email");
+  const watermarkIntensity = getValue("watermark_intensity", "medium");
+  const watermarkPosition = getValue("watermark_position", "diagonal");
+  const watermarkCount = parseInt(getValue("watermark_count", "10")) || 10;
+  const zoomEnabled = getValue("zoom_enabled", "true") !== "false";
 
   const { data: item } = useQuery({
     queryKey: ["content-item", id],
@@ -48,31 +94,19 @@ export default function ContentViewer() {
     enabled: !!id,
   });
 
-  // Fetch admin watermark setting
-  const { data: watermarkSetting } = useQuery({
-    queryKey: ["watermark-setting"],
-    queryFn: async () => {
-      const { data } = await supabase.from("app_settings").select("value").eq("key", "watermark_type").single();
-      return data?.value || "email";
-    },
-  });
-
   useEffect(() => {
     if (item && user) {
       supabase.from("content_views").insert({ content_id: item.id, user_id: user.id });
     }
   }, [item, user]);
 
-  // Determine watermark text
   const getWatermarkText = () => {
-    const type = watermarkSetting || "email";
-    if (type === "email") return user?.email || "User";
-    if (type === "name") return profile?.full_name || "User";
-    if (type === "both") return `${profile?.full_name || ""} · ${user?.email || ""}`;
+    if (watermarkType === "email") return user?.email || "User";
+    if (watermarkType === "name") return profile?.full_name || "User";
+    if (watermarkType === "both") return `${profile?.full_name || ""} · ${user?.email || ""}`;
     return user?.email || "User";
   };
 
-  // Load PDF
   useEffect(() => {
     if (item?.content_type === "pdf" && item.file_url) {
       const loadPdf = async () => {
@@ -90,13 +124,11 @@ export default function ContentViewer() {
     }
   }, [item]);
 
-  // Render a single page
   const renderPage = useCallback(async (pageNum: number, currentZoom: number) => {
     if (!pdfDoc) return;
     if (renderingPages.current.has(pageNum)) return;
     const canvas = canvasRefs.current.get(pageNum);
     if (!canvas) return;
-    
     renderingPages.current.add(pageNum);
     try {
       const page = await pdfDoc.getPage(pageNum);
@@ -113,7 +145,6 @@ export default function ContentViewer() {
     }
   }, [pdfDoc]);
 
-  // Re-render all pages on zoom change (debounced)
   useEffect(() => {
     if (!pdfDoc) return;
     renderedPages.current.clear();
@@ -122,11 +153,10 @@ export default function ContentViewer() {
     }
   }, [pdfDoc, zoom, totalPages, renderPage]);
 
-  // Pinch-to-zoom handler
   useEffect(() => {
+    if (!zoomEnabled) return;
     const container = containerRef.current;
     if (!container) return;
-
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
         e.preventDefault();
@@ -136,7 +166,6 @@ export default function ContentViewer() {
         baseZoomRef.current = zoom;
       }
     };
-
     const handleTouchMove = (e: TouchEvent) => {
       if (e.touches.length === 2 && lastDistRef.current !== null) {
         e.preventDefault();
@@ -145,7 +174,6 @@ export default function ContentViewer() {
         const dist = Math.hypot(dx, dy);
         const scale = dist / lastDistRef.current;
         const newZoom = Math.min(3, Math.max(0.5, baseZoomRef.current * scale));
-        // Use CSS transform for smooth visual zoom, debounce re-render
         container.style.setProperty("--pinch-scale", String(newZoom / zoom));
         if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
         zoomTimeoutRef.current = setTimeout(() => {
@@ -154,26 +182,19 @@ export default function ContentViewer() {
         }, 200);
       }
     };
-
-    const handleTouchEnd = () => {
-      lastDistRef.current = null;
-    };
-
+    const handleTouchEnd = () => { lastDistRef.current = null; };
     container.addEventListener("touchstart", handleTouchStart, { passive: false });
     container.addEventListener("touchmove", handleTouchMove, { passive: false });
     container.addEventListener("touchend", handleTouchEnd);
-
     return () => {
       container.removeEventListener("touchstart", handleTouchStart);
       container.removeEventListener("touchmove", handleTouchMove);
       container.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [zoom]);
+  }, [zoom, zoomEnabled]);
 
   const setCanvasRef = useCallback((pageNum: number) => (el: HTMLCanvasElement | null) => {
-    if (el) {
-      canvasRefs.current.set(pageNum, el);
-    }
+    if (el) canvasRefs.current.set(pageNum, el);
   }, []);
 
   const handleZoomIn = () => setZoom((z) => Math.min(3, z + 0.25));
@@ -182,25 +203,23 @@ export default function ContentViewer() {
   if (!user) return <Navigate to="/auth" replace />;
   if (!item) return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Loading...</div>;
 
+  const showWatermark = item.add_watermark && watermarkType !== "none";
+
   return (
     <div className="min-h-screen bg-background no-screenshot">
-      {/* Top bar */}
       <div className="fixed top-0 left-0 right-0 z-40 glass-card border-b border-border/50">
         <div className="flex items-center justify-between p-3">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <button onClick={() => window.history.back()} className="p-1 shrink-0"><ArrowLeft className="w-5 h-5" /></button>
             <span className="text-sm font-medium truncate">{item.name}</span>
           </div>
-
-          {/* Zoom controls - center */}
-          {item.content_type === "pdf" && (
+          {item.content_type === "pdf" && zoomEnabled && (
             <div className="flex items-center gap-1 mx-2">
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomOut}><ZoomOut className="w-4 h-4" /></Button>
               <span className="text-xs text-muted-foreground min-w-[40px] text-center">{Math.round(zoom * 100)}%</span>
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomIn}><ZoomIn className="w-4 h-4" /></Button>
             </div>
           )}
-
           <div className="flex items-center gap-1 shrink-0">
             {item.allow_download && (
               <a href={item.file_url} download target="_blank" rel="noopener noreferrer">
@@ -211,7 +230,6 @@ export default function ContentViewer() {
         </div>
       </div>
 
-      {/* Content */}
       <div className="pt-14 relative" ref={containerRef}>
         {item.content_type === "pdf" ? (
           <div className="flex flex-col items-center gap-2 pb-6 px-2">
@@ -223,14 +241,12 @@ export default function ContentViewer() {
                   style={{ touchAction: "pan-y" }}
                   onContextMenu={(e) => e.preventDefault()}
                 />
-                {item.add_watermark && watermarkSetting !== "none" && (
-                  <Watermark text={getWatermarkText()} />
+                {showWatermark && (
+                  <Watermark text={getWatermarkText()} intensity={watermarkIntensity} position={watermarkPosition} count={watermarkCount} />
                 )}
               </div>
             ))}
-            {totalPages === 0 && (
-              <p className="text-sm text-muted-foreground py-12">Loading PDF...</p>
-            )}
+            {totalPages === 0 && <p className="text-sm text-muted-foreground py-12">Loading PDF...</p>}
           </div>
         ) : (
           <div className="relative flex items-center justify-center min-h-[calc(100vh-56px)] p-4">
@@ -238,12 +254,12 @@ export default function ContentViewer() {
               src={item.file_url}
               alt={item.name}
               className="max-w-full max-h-[80vh] object-contain rounded-lg"
-              style={{ transform: `scale(${zoom})` }}
+              style={{ transform: zoomEnabled ? `scale(${zoom})` : undefined }}
               draggable={false}
               onContextMenu={(e) => e.preventDefault()}
             />
-            {item.add_watermark && watermarkSetting !== "none" && (
-              <Watermark text={getWatermarkText()} />
+            {showWatermark && (
+              <Watermark text={getWatermarkText()} intensity={watermarkIntensity} position={watermarkPosition} count={watermarkCount} />
             )}
           </div>
         )}
