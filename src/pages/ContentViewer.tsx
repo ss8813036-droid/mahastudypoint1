@@ -153,12 +153,20 @@ export default function ContentViewer() {
   }, [pdfDoc]);
 
   useEffect(() => {
-    if (!pdfDoc) return;
-    renderTasksRef.current.forEach(t => { try { t.cancel(); } catch {} });
-    renderTasksRef.current.clear();
-    for (let i = 1; i <= totalPages; i++) {
-      renderPage(i, zoom);
-    }
+    if (!pdfDoc || totalPages === 0) return;
+    // Wait for next frame so canvas refs are mounted
+    const rafId = requestAnimationFrame(() => {
+      renderTasksRef.current.forEach(t => { try { t.cancel(); } catch {} });
+      renderTasksRef.current.clear();
+      // Render pages sequentially to avoid PDF.js conflicts
+      const renderSequentially = async () => {
+        for (let i = 1; i <= totalPages; i++) {
+          await renderPage(i, zoom);
+        }
+      };
+      renderSequentially();
+    });
+    return () => cancelAnimationFrame(rafId);
   }, [pdfDoc, zoom, totalPages, renderPage]);
 
   const zoomRef = useRef(zoom);
