@@ -73,8 +73,6 @@ export default function ContentViewer() {
   const [totalPages, setTotalPages] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
-  const renderedPages = useRef<Set<number>>(new Set());
-  const renderingPages = useRef<Set<number>>(new Set());
   const lastDistRef = useRef<number | null>(null);
   const baseZoomRef = useRef(1);
   const zoomTimeoutRef = useRef<any>(null);
