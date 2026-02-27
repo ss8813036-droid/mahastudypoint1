@@ -52,7 +52,7 @@ export default function AdminCourses() {
       queryClient.invalidateQueries({ queryKey: ["admin-courses"] });
       toast.success("Course created!");
       setShowCreate(false);
-      setTitle(""); setDescription(""); setSemester(""); setSubject(""); setPrice("0"); setValidity("");
+      setTitle(""); setDescription(""); setSemester(""); setSubject(""); setPrice("0"); setValidity(""); setPaymentLink("");
     },
     onError: (e: any) => toast.error(e.message),
   });
