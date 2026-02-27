@@ -22,6 +22,7 @@ export default function AdminCourses() {
   const [subject, setSubject] = useState("");
   const [price, setPrice] = useState("0");
   const [validity, setValidity] = useState("");
+  const [paymentLink, setPaymentLink] = useState("");
 
   if (!isAdmin) return <Navigate to="/" replace />;
 
@@ -42,6 +43,7 @@ export default function AdminCourses() {
         subject: subject.trim() || null,
         price: parseFloat(price) || 0,
         validity_days: validity && validity !== "lifetime" ? parseInt(validity) : null,
+        payment_link: paymentLink.trim() || null,
         created_by: user!.id,
       });
       if (error) throw error;
@@ -50,7 +52,7 @@ export default function AdminCourses() {
       queryClient.invalidateQueries({ queryKey: ["admin-courses"] });
       toast.success("Course created!");
       setShowCreate(false);
-      setTitle(""); setDescription(""); setSemester(""); setSubject(""); setPrice("0"); setValidity("");
+      setTitle(""); setDescription(""); setSemester(""); setSubject(""); setPrice("0"); setValidity(""); setPaymentLink("");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -140,6 +142,7 @@ export default function AdminCourses() {
                 </SelectContent>
               </Select>
             </div>
+            <Input value={paymentLink} onChange={(e) => setPaymentLink(e.target.value)} placeholder="Payment Link (Pay Online URL)" className="bg-muted/50" maxLength={500} />
             <Button className="w-full" onClick={() => createCourse.mutate()} disabled={!title.trim()}>Create Course</Button>
           </div>
         </DialogContent>
