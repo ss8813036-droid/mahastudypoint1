@@ -247,7 +247,7 @@ export default function ContentViewer() {
                 <canvas
                   ref={setCanvasRef(pageNum)}
                   className="max-w-full shadow-sm"
-                  style={{ touchAction: "pan-y" }}
+                  style={{ touchAction: zoomEnabled ? "none" : "pan-y" }}
                   onContextMenu={(e) => e.preventDefault()}
                 />
                 {showWatermark && (
