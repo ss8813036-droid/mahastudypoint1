@@ -130,8 +130,20 @@ export default function AdminCourseDetail() {
     setEditTitle(course.title);
     setEditPrice(course.price?.toString() || "0");
     setEditDescription(course.description || "");
-    setEditValidity(course.validity_days?.toString() || "");
+    const v = course.validity_days;
+    if (!v) {
+      setEditValidity("none");
+      setEditCustomValidity("");
+    } else if ([30, 90, 180, 365].includes(v)) {
+      setEditValidity(v.toString());
+      setEditCustomValidity("");
+    } else {
+      setEditValidity("custom");
+      setEditCustomValidity(v.toString());
+    }
     setEditLaunched(course.is_launched);
+    setEditPaymentMode(course.payment_mode || "razorpay");
+    setEditPaymentLink(course.payment_link || "");
     setShowEditCourse(true);
   };
 
