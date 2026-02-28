@@ -55,7 +55,7 @@ export default function AdminCourses() {
       queryClient.invalidateQueries({ queryKey: ["admin-courses"] });
       toast.success("Course created!");
       setShowCreate(false);
-      setTitle(""); setDescription(""); setSemester(""); setSubject(""); setPrice("0"); setValidity(""); setPaymentLink(""); setPaymentMode("razorpay");
+      setTitle(""); setDescription(""); setSemester(""); setSubject(""); setPrice("0"); setValidity(""); setCustomValidity(""); setPaymentLink(""); setPaymentMode("razorpay");
     },
     onError: (e: any) => toast.error(e.message),
   });
