@@ -137,6 +137,33 @@ export default function Profile() {
           </CardContent>
         </Card>
 
+        {/* Contact Admin */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-3">
+            <h2 className="text-sm font-display font-semibold flex items-center gap-2">
+              <Phone className="w-4 h-4" /> Contact Admin
+            </h2>
+            {appSettings?.admin_contact_email && (
+              <a href={`mailto:${appSettings.admin_contact_email}`} className="flex items-center gap-2 text-sm text-primary hover:underline">
+                <Mail className="w-4 h-4" /> {appSettings.admin_contact_email}
+              </a>
+            )}
+            {appSettings?.admin_contact_whatsapp && (
+              <a
+                href={`https://wa.me/${appSettings.admin_contact_whatsapp.replace(/[^0-9]/g, "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-success hover:underline"
+              >
+                <MessageCircle className="w-4 h-4" /> WhatsApp: {appSettings.admin_contact_whatsapp}
+              </a>
+            )}
+            {!appSettings?.admin_contact_email && !appSettings?.admin_contact_whatsapp && (
+              <p className="text-xs text-muted-foreground">Contact info not configured.</p>
+            )}
+          </CardContent>
+        </Card>
+
         {isAdmin && (
           <Button variant="outline" className="w-full" onClick={() => navigate("/admin/users")}>
             Go to Admin Panel

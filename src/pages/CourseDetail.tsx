@@ -272,10 +272,18 @@ export default function CourseDetail() {
             <DialogDescription>Choose how you'd like to access this course.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            {course.price > 0 && razorpayEnabled && (
+            {/* Razorpay button - show if course payment_mode allows it */}
+            {course.price > 0 && razorpayEnabled && (course.payment_mode === "razorpay" || course.payment_mode === "both") && (
               <Button className="w-full gap-2" onClick={handleRazorpayPayment} disabled={paying}>
                 <CreditCard className="w-4 h-4" />
                 {paying ? "Processing..." : `Pay ₹${course.price} Online`}
+              </Button>
+            )}
+            {/* Payment Link button */}
+            {course.price > 0 && course.payment_link && (course.payment_mode === "payment_link" || course.payment_mode === "both") && (
+              <Button variant="outline" className="w-full gap-2" onClick={() => window.open(course.payment_link!, "_blank")}>
+                <CreditCard className="w-4 h-4" />
+                Pay Online (Link)
               </Button>
             )}
             {whatsappEnabled && (

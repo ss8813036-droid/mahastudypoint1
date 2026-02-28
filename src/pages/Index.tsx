@@ -6,8 +6,9 @@ import AdminHome from "@/components/home/AdminHome";
 import TeacherHome from "@/components/home/TeacherHome";
 
 export default function Index() {
-  const { user, isAdmin, isTeacher } = useAuth();
+  const { user, isAdmin, isTeacher, loading } = useAuth();
 
+  if (loading) return <AppLayout><div className="p-4 text-center text-muted-foreground">Loading...</div></AppLayout>;
   if (!user) return <Navigate to="/auth" replace />;
 
   return (
