@@ -22,6 +22,7 @@ export default function AdminCourses() {
   const [subject, setSubject] = useState("");
   const [price, setPrice] = useState("0");
   const [validity, setValidity] = useState("");
+  const [customValidity, setCustomValidity] = useState("");
   const [paymentLink, setPaymentLink] = useState("");
   const [paymentMode, setPaymentMode] = useState("razorpay");
 
