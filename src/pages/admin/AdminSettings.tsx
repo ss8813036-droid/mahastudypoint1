@@ -258,6 +258,17 @@ export default function AdminSettings() {
           </CardContent>
         </Card>
 
+        {/* Admin Contact Info */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-4">
+            <h2 className="text-sm font-display font-semibold flex items-center gap-2">
+              <MessageCircle className="w-4 h-4" /> Admin Contact (Shown in Profile)
+            </h2>
+            <Input value={adminContactEmail} onChange={(e) => setAdminContactEmail(e.target.value)} placeholder="Admin Email (e.g. mahastudypoint@gmail.com)" className="bg-muted/50" maxLength={100} />
+            <Input value={adminContactWhatsapp} onChange={(e) => setAdminContactWhatsapp(e.target.value)} placeholder="Admin WhatsApp No (e.g. 919876543210)" className="bg-muted/50" maxLength={20} />
+          </CardContent>
+        </Card>
+
         <Button className="w-full gap-2" onClick={saveAll}><Save className="w-4 h-4" />Save All Settings</Button>
       </div>
     </AppLayout>
