@@ -102,12 +102,20 @@ export default function AdminCourseDetail() {
 
   const updateCourse = useMutation({
     mutationFn: async () => {
+      let validityDays: number | null = null;
+      if (editValidity === "custom" && editCustomValidity) {
+        validityDays = parseInt(editCustomValidity);
+      } else if (editValidity && editValidity !== "none" && editValidity !== "custom") {
+        validityDays = parseInt(editValidity);
+      }
       const { error } = await supabase.from("courses").update({
         title: editTitle.trim(),
         price: parseFloat(editPrice) || 0,
         description: editDescription.trim() || null,
-        validity_days: editValidity ? parseInt(editValidity) : null,
+        validity_days: validityDays,
         is_launched: editLaunched,
+        payment_mode: editPaymentMode,
+        payment_link: editPaymentLink.trim() || null,
       }).eq("id", id!);
       if (error) throw error;
     },
