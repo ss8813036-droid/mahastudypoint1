@@ -42,7 +42,10 @@ export default function AdminCourseDetail() {
   const [editPrice, setEditPrice] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editValidity, setEditValidity] = useState("");
+  const [editCustomValidity, setEditCustomValidity] = useState("");
   const [editLaunched, setEditLaunched] = useState(false);
+  const [editPaymentMode, setEditPaymentMode] = useState("razorpay");
+  const [editPaymentLink, setEditPaymentLink] = useState("");
 
   if (!isAdmin) return <Navigate to="/" replace />;
 
@@ -99,12 +102,20 @@ export default function AdminCourseDetail() {
 
   const updateCourse = useMutation({
     mutationFn: async () => {
+      let validityDays: number | null = null;
+      if (editValidity === "custom" && editCustomValidity) {
+        validityDays = parseInt(editCustomValidity);
+      } else if (editValidity && editValidity !== "none" && editValidity !== "custom") {
+        validityDays = parseInt(editValidity);
+      }
       const { error } = await supabase.from("courses").update({
         title: editTitle.trim(),
         price: parseFloat(editPrice) || 0,
         description: editDescription.trim() || null,
-        validity_days: editValidity ? parseInt(editValidity) : null,
+        validity_days: validityDays,
         is_launched: editLaunched,
+        payment_mode: editPaymentMode,
+        payment_link: editPaymentLink.trim() || null,
       }).eq("id", id!);
       if (error) throw error;
     },
@@ -119,8 +130,20 @@ export default function AdminCourseDetail() {
     setEditTitle(course.title);
     setEditPrice(course.price?.toString() || "0");
     setEditDescription(course.description || "");
-    setEditValidity(course.validity_days?.toString() || "");
+    const v = course.validity_days;
+    if (!v) {
+      setEditValidity("none");
+      setEditCustomValidity("");
+    } else if ([30, 90, 180, 365].includes(v)) {
+      setEditValidity(v.toString());
+      setEditCustomValidity("");
+    } else {
+      setEditValidity("custom");
+      setEditCustomValidity(v.toString());
+    }
     setEditLaunched(course.is_launched);
+    setEditPaymentMode(course.payment_mode || "razorpay");
+    setEditPaymentLink(course.payment_link || "");
     setShowEditCourse(true);
   };
 
@@ -310,22 +333,49 @@ export default function AdminCourseDetail() {
 
       {/* Edit Course Dialog */}
       <Dialog open={showEditCourse} onOpenChange={setShowEditCourse}>
-        <DialogContent className="glass-card border-border/50 max-w-sm">
+        <DialogContent className="glass-card border-border/50 max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle className="font-display">Edit Course</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Course Title" className="bg-muted/50" />
             <Input value={editPrice} onChange={(e) => setEditPrice(e.target.value)} placeholder="Price (₹)" type="number" className="bg-muted/50" />
             <Input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Description" className="bg-muted/50" />
-            <Select value={editValidity || "none"} onValueChange={(v) => setEditValidity(v === "none" ? "" : v)}>
-              <SelectTrigger className="bg-muted/50"><SelectValue placeholder="Validity" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Lifetime</SelectItem>
-                <SelectItem value="30">30 Days</SelectItem>
-                <SelectItem value="90">90 Days</SelectItem>
-                <SelectItem value="180">180 Days</SelectItem>
-                <SelectItem value="365">1 Year</SelectItem>
-              </SelectContent>
-            </Select>
+            
+            {/* Validity */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Validity</label>
+              <Select value={editValidity} onValueChange={(v) => { setEditValidity(v); if (v !== "custom") setEditCustomValidity(""); }}>
+                <SelectTrigger className="bg-muted/50"><SelectValue placeholder="Validity" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Lifetime</SelectItem>
+                  <SelectItem value="30">30 Days</SelectItem>
+                  <SelectItem value="90">90 Days</SelectItem>
+                  <SelectItem value="180">180 Days</SelectItem>
+                  <SelectItem value="365">1 Year</SelectItem>
+                  <SelectItem value="custom">Custom Days</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {editValidity === "custom" && (
+              <Input value={editCustomValidity} onChange={(e) => setEditCustomValidity(e.target.value)} placeholder="Number of days" type="number" min="1" className="bg-muted/50" />
+            )}
+
+            {/* Payment Mode */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Payment Method</label>
+              <Select value={editPaymentMode} onValueChange={setEditPaymentMode}>
+                <SelectTrigger className="bg-muted/50"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="razorpay">Razorpay</SelectItem>
+                  <SelectItem value="payment_link">Payment Link</SelectItem>
+                  <SelectItem value="both">Both</SelectItem>
+                  <SelectItem value="none">Free (No Payment)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {(editPaymentMode === "payment_link" || editPaymentMode === "both") && (
+              <Input value={editPaymentLink} onChange={(e) => setEditPaymentLink(e.target.value)} placeholder="Payment Link URL" className="bg-muted/50" maxLength={500} />
+            )}
+
             <div className="flex items-center justify-between">
               <span className="text-sm">Launch Course</span>
               <Switch checked={editLaunched} onCheckedChange={setEditLaunched} />

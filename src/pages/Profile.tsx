@@ -12,12 +12,14 @@ import { signOut } from "@/lib/auth";
 import { clearDeviceSession } from "@/lib/device-session";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { LogOut, User, Mail, GraduationCap, Shield, Sun, Moon, Monitor } from "lucide-react";
+import { LogOut, User, Mail, GraduationCap, Shield, Sun, Moon, Monitor, MessageCircle, Phone } from "lucide-react";
+import { useAppSettings } from "@/hooks/use-app-settings";
 import logo from "@/assets/logo.jpg";
 
 export default function Profile() {
-  const { user, profile, roles, isAdmin, refreshProfile } = useAuth();
+  const { user, profile, roles, isAdmin, loading, refreshProfile } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { settings: appSettings } = useAppSettings();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [fullName, setFullName] = useState(profile?.full_name || "");
@@ -25,6 +27,7 @@ export default function Profile() {
   const [branch, setBranch] = useState(profile?.branch || "");
   const [saving, setSaving] = useState(false);
 
+  if (loading) return <AppLayout><div className="p-4 text-center text-muted-foreground">Loading...</div></AppLayout>;
   if (!user) return <Navigate to="/auth" replace />;
 
   const handleSave = async () => {
@@ -131,6 +134,33 @@ export default function Profile() {
                 </button>
               ))}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Contact Admin */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-3">
+            <h2 className="text-sm font-display font-semibold flex items-center gap-2">
+              <Phone className="w-4 h-4" /> Contact Admin
+            </h2>
+            {appSettings?.admin_contact_email && (
+              <a href={`mailto:${appSettings.admin_contact_email}`} className="flex items-center gap-2 text-sm text-primary hover:underline">
+                <Mail className="w-4 h-4" /> {appSettings.admin_contact_email}
+              </a>
+            )}
+            {appSettings?.admin_contact_whatsapp && (
+              <a
+                href={`https://wa.me/${appSettings.admin_contact_whatsapp.replace(/[^0-9]/g, "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-success hover:underline"
+              >
+                <MessageCircle className="w-4 h-4" /> WhatsApp: {appSettings.admin_contact_whatsapp}
+              </a>
+            )}
+            {!appSettings?.admin_contact_email && !appSettings?.admin_contact_whatsapp && (
+              <p className="text-xs text-muted-foreground">Contact info not configured.</p>
+            )}
           </CardContent>
         </Card>
 

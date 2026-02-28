@@ -22,6 +22,7 @@ export default function AdminCourses() {
   const [subject, setSubject] = useState("");
   const [price, setPrice] = useState("0");
   const [validity, setValidity] = useState("");
+  const [customValidity, setCustomValidity] = useState("");
   const [paymentLink, setPaymentLink] = useState("");
   const [paymentMode, setPaymentMode] = useState("razorpay");
 
@@ -43,7 +44,7 @@ export default function AdminCourses() {
         semester: semester ? parseInt(semester) : null,
         subject: subject.trim() || null,
         price: parseFloat(price) || 0,
-        validity_days: validity && validity !== "lifetime" ? parseInt(validity) : null,
+        validity_days: validity === "custom" ? (parseInt(customValidity) || null) : (validity && validity !== "lifetime" ? parseInt(validity) : null),
         payment_link: paymentLink.trim() || null,
         payment_mode: paymentMode,
         created_by: user!.id,
@@ -54,7 +55,7 @@ export default function AdminCourses() {
       queryClient.invalidateQueries({ queryKey: ["admin-courses"] });
       toast.success("Course created!");
       setShowCreate(false);
-      setTitle(""); setDescription(""); setSemester(""); setSubject(""); setPrice("0"); setValidity(""); setPaymentLink(""); setPaymentMode("razorpay");
+      setTitle(""); setDescription(""); setSemester(""); setSubject(""); setPrice("0"); setValidity(""); setCustomValidity(""); setPaymentLink(""); setPaymentMode("razorpay");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -134,16 +135,21 @@ export default function AdminCourses() {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price (₹)" className="bg-muted/50" min="0" />
-              <Select value={validity} onValueChange={setValidity}>
+              <Select value={validity} onValueChange={(v) => { setValidity(v); }}>
                 <SelectTrigger className="bg-muted/50"><SelectValue placeholder="Validity" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="30">30 Days</SelectItem>
                   <SelectItem value="90">90 Days</SelectItem>
+                  <SelectItem value="180">180 Days</SelectItem>
                   <SelectItem value="365">1 Year</SelectItem>
                   <SelectItem value="lifetime">Lifetime</SelectItem>
+                  <SelectItem value="custom">Custom Days</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {validity === "custom" && (
+              <Input value={customValidity} onChange={(e) => setCustomValidity(e.target.value)} placeholder="Number of days" type="number" min="1" className="bg-muted/50" />
+            )}
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Payment Method</label>
               <Select value={paymentMode} onValueChange={setPaymentMode}>

@@ -22,6 +22,10 @@ export default function AdminSettings() {
   const [whatsappTemplate, setWhatsappTemplate] = useState("");
   const [whatsappEnabled, setWhatsappEnabled] = useState(true);
 
+  // Admin Contact
+  const [adminContactEmail, setAdminContactEmail] = useState("");
+  const [adminContactWhatsapp, setAdminContactWhatsapp] = useState("");
+
   // App toggles
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [razorpayEnabled, setRazorpayEnabled] = useState(true);
@@ -71,6 +75,8 @@ export default function AdminSettings() {
       setWatermarkIntensity(settings.watermark_intensity || "medium");
       setWatermarkPosition(settings.watermark_position || "diagonal");
       setWatermarkCount(settings.watermark_count || "10");
+      setAdminContactEmail(settings.admin_contact_email || "mahastudypoint@gmail.com");
+      setAdminContactWhatsapp(settings.admin_contact_whatsapp || "");
     }
   }, [settings]);
 
@@ -117,6 +123,8 @@ export default function AdminSettings() {
         saveSetting.mutateAsync({ key: "watermark_intensity", value: watermarkIntensity }),
         saveSetting.mutateAsync({ key: "watermark_position", value: watermarkPosition }),
         saveSetting.mutateAsync({ key: "watermark_count", value: watermarkCount }),
+        saveSetting.mutateAsync({ key: "admin_contact_email", value: adminContactEmail }),
+        saveSetting.mutateAsync({ key: "admin_contact_whatsapp", value: adminContactWhatsapp }),
       ]);
       toast.success("All settings saved!");
     } catch (e: any) {
@@ -247,6 +255,17 @@ export default function AdminSettings() {
                 />
               </div>
             ))}
+          </CardContent>
+        </Card>
+
+        {/* Admin Contact Info */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-4">
+            <h2 className="text-sm font-display font-semibold flex items-center gap-2">
+              <MessageCircle className="w-4 h-4" /> Admin Contact (Shown in Profile)
+            </h2>
+            <Input value={adminContactEmail} onChange={(e) => setAdminContactEmail(e.target.value)} placeholder="Admin Email (e.g. mahastudypoint@gmail.com)" className="bg-muted/50" maxLength={100} />
+            <Input value={adminContactWhatsapp} onChange={(e) => setAdminContactWhatsapp(e.target.value)} placeholder="Admin WhatsApp No (e.g. 919876543210)" className="bg-muted/50" maxLength={20} />
           </CardContent>
         </Card>
 
