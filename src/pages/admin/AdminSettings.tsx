@@ -123,6 +123,8 @@ export default function AdminSettings() {
         saveSetting.mutateAsync({ key: "watermark_intensity", value: watermarkIntensity }),
         saveSetting.mutateAsync({ key: "watermark_position", value: watermarkPosition }),
         saveSetting.mutateAsync({ key: "watermark_count", value: watermarkCount }),
+        saveSetting.mutateAsync({ key: "admin_contact_email", value: adminContactEmail }),
+        saveSetting.mutateAsync({ key: "admin_contact_whatsapp", value: adminContactWhatsapp }),
       ]);
       toast.success("All settings saved!");
     } catch (e: any) {
