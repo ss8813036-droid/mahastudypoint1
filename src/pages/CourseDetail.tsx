@@ -16,7 +16,7 @@ import ShareCourseButton from "@/components/ShareCourseButton";
 
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const { isEnabled, settings } = useAppSettings();
   const [showPurchase, setShowPurchase] = useState(false);
   const [token, setToken] = useState("");
