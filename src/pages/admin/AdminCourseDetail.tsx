@@ -42,7 +42,10 @@ export default function AdminCourseDetail() {
   const [editPrice, setEditPrice] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editValidity, setEditValidity] = useState("");
+  const [editCustomValidity, setEditCustomValidity] = useState("");
   const [editLaunched, setEditLaunched] = useState(false);
+  const [editPaymentMode, setEditPaymentMode] = useState("razorpay");
+  const [editPaymentLink, setEditPaymentLink] = useState("");
 
   if (!isAdmin) return <Navigate to="/" replace />;
 
