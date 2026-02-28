@@ -16,8 +16,9 @@ import { LogOut, User, Mail, GraduationCap, Shield, Sun, Moon, Monitor } from "l
 import logo from "@/assets/logo.jpg";
 
 export default function Profile() {
-  const { user, profile, roles, isAdmin, refreshProfile } = useAuth();
+  const { user, profile, roles, isAdmin, loading, refreshProfile } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { settings: appSettings } = useAppSettings();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [fullName, setFullName] = useState(profile?.full_name || "");
@@ -25,6 +26,7 @@ export default function Profile() {
   const [branch, setBranch] = useState(profile?.branch || "");
   const [saving, setSaving] = useState(false);
 
+  if (loading) return <AppLayout><div className="p-4 text-center text-muted-foreground">Loading...</div></AppLayout>;
   if (!user) return <Navigate to="/auth" replace />;
 
   const handleSave = async () => {
