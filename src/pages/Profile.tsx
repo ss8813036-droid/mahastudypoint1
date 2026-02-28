@@ -12,7 +12,8 @@ import { signOut } from "@/lib/auth";
 import { clearDeviceSession } from "@/lib/device-session";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { LogOut, User, Mail, GraduationCap, Shield, Sun, Moon, Monitor } from "lucide-react";
+import { LogOut, User, Mail, GraduationCap, Shield, Sun, Moon, Monitor, MessageCircle, Phone } from "lucide-react";
+import { useAppSettings } from "@/hooks/use-app-settings";
 import logo from "@/assets/logo.jpg";
 
 export default function Profile() {
