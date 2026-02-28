@@ -22,6 +22,10 @@ export default function AdminSettings() {
   const [whatsappTemplate, setWhatsappTemplate] = useState("");
   const [whatsappEnabled, setWhatsappEnabled] = useState(true);
 
+  // Admin Contact
+  const [adminContactEmail, setAdminContactEmail] = useState("");
+  const [adminContactWhatsapp, setAdminContactWhatsapp] = useState("");
+
   // App toggles
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [razorpayEnabled, setRazorpayEnabled] = useState(true);
