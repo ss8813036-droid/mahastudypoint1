@@ -26,7 +26,6 @@ function Watermark({ text, intensity, position, count }: { text: string; intensi
         { bottom: "8%", top: "auto", right: "8%", left: "auto", transform: "rotate(-30deg)" },
       ];
     }
-    // diagonal or grid
     const items: any[] = [];
     const cols = Math.ceil(Math.sqrt(count));
     const rows = Math.ceil(count / cols);
@@ -64,6 +63,17 @@ function Watermark({ text, intensity, position, count }: { text: string; intensi
   );
 }
 
+async function getSignedContentUrl(contentId: string): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const response = await supabase.functions.invoke("get-content-url", {
+    body: { contentId },
+  });
+  if (response.error || !response.data?.url) {
+    throw new Error("Failed to get content URL");
+  }
+  return response.data.url;
+}
+
 export default function ContentViewer() {
   const { id } = useParams<{ id: string }>();
   const { user, profile } = useAuth();
@@ -92,6 +102,14 @@ export default function ContentViewer() {
     enabled: !!id,
   });
 
+  const { data: signedUrl } = useQuery({
+    queryKey: ["content-signed-url", id],
+    queryFn: () => getSignedContentUrl(id!),
+    enabled: !!id && !!item,
+    staleTime: 30 * 60 * 1000, // 30 min
+    refetchInterval: 45 * 60 * 1000, // refresh before expiry
+  });
+
   useEffect(() => {
     if (item && user) {
       supabase.from("content_views").insert({ content_id: item.id, user_id: user.id });
@@ -106,10 +124,10 @@ export default function ContentViewer() {
   };
 
   useEffect(() => {
-    if (item?.content_type === "pdf" && item.file_url) {
+    if (item?.content_type === "pdf" && signedUrl) {
       const loadPdf = async () => {
         try {
-          const doc = await pdfjsLib.getDocument(item.file_url).promise;
+          const doc = await pdfjsLib.getDocument(signedUrl).promise;
           setPdfDoc(doc);
           setTotalPages(doc.numPages);
           renderTasksRef.current.forEach(t => { try { t.cancel(); } catch {} });
@@ -120,7 +138,7 @@ export default function ContentViewer() {
       };
       loadPdf();
     }
-  }, [item]);
+  }, [item, signedUrl]);
 
   const renderTasksRef = useRef<Map<number, any>>(new Map());
 
@@ -129,7 +147,6 @@ export default function ContentViewer() {
     const canvas = canvasRefs.current.get(pageNum);
     if (!canvas) return;
 
-    // Cancel any in-progress render for this page
     const existingTask = renderTasksRef.current.get(pageNum);
     if (existingTask) {
       try { existingTask.cancel(); } catch {}
@@ -154,11 +171,9 @@ export default function ContentViewer() {
 
   useEffect(() => {
     if (!pdfDoc || totalPages === 0) return;
-    // Wait for next frame so canvas refs are mounted
     const rafId = requestAnimationFrame(() => {
       renderTasksRef.current.forEach(t => { try { t.cancel(); } catch {} });
       renderTasksRef.current.clear();
-      // Render pages sequentially to avoid PDF.js conflicts
       const renderSequentially = async () => {
         for (let i = 1; i <= totalPages; i++) {
           await renderPage(i, zoom);
@@ -221,6 +236,7 @@ export default function ContentViewer() {
   if (!item) return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Loading...</div>;
 
   const showWatermark = item.add_watermark && watermarkType !== "none";
+  const fileReady = !!signedUrl;
 
   return (
     <div className="min-h-screen bg-background no-screenshot">
@@ -238,8 +254,8 @@ export default function ContentViewer() {
             </div>
           )}
           <div className="flex items-center gap-1 shrink-0">
-            {item.allow_download && (
-              <a href={item.file_url} download target="_blank" rel="noopener noreferrer">
+            {item.allow_download && signedUrl && (
+              <a href={signedUrl} download target="_blank" rel="noopener noreferrer">
                 <Button variant="ghost" size="icon" className="h-8 w-8"><Download className="w-4 h-4" /></Button>
               </a>
             )}
@@ -248,7 +264,11 @@ export default function ContentViewer() {
       </div>
 
       <div className="pt-14 relative" ref={containerRef}>
-        {item.content_type === "pdf" ? (
+        {!fileReady ? (
+          <div className="flex items-center justify-center min-h-[calc(100vh-56px)]">
+            <p className="text-sm text-muted-foreground">Loading content...</p>
+          </div>
+        ) : item.content_type === "pdf" ? (
           <div className="flex flex-col items-center gap-2 pb-6 px-2">
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
               <div key={pageNum} className="relative w-full flex justify-center">
@@ -268,7 +288,7 @@ export default function ContentViewer() {
         ) : (
           <div className="relative flex items-center justify-center min-h-[calc(100vh-56px)] p-4">
             <img
-              src={item.file_url}
+              src={signedUrl}
               alt={item.name}
               className="max-w-full max-h-[80vh] object-contain rounded-lg"
               style={{ transform: zoomEnabled ? `scale(${zoom})` : undefined }}
