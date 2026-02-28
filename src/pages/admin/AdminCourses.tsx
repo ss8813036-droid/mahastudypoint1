@@ -44,7 +44,7 @@ export default function AdminCourses() {
         semester: semester ? parseInt(semester) : null,
         subject: subject.trim() || null,
         price: parseFloat(price) || 0,
-        validity_days: validity && validity !== "lifetime" ? parseInt(validity) : null,
+        validity_days: validity === "custom" ? (parseInt(customValidity) || null) : (validity && validity !== "lifetime" ? parseInt(validity) : null),
         payment_link: paymentLink.trim() || null,
         payment_mode: paymentMode,
         created_by: user!.id,
