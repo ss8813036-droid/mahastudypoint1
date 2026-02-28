@@ -147,6 +147,9 @@ export default function AdminCourses() {
                 </SelectContent>
               </Select>
             </div>
+            {validity === "custom" && (
+              <Input value={customValidity} onChange={(e) => setCustomValidity(e.target.value)} placeholder="Number of days" type="number" min="1" className="bg-muted/50" />
+            )}
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Payment Method</label>
               <Select value={paymentMode} onValueChange={setPaymentMode}>
