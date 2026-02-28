@@ -134,13 +134,15 @@ export default function AdminCourses() {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price (₹)" className="bg-muted/50" min="0" />
-              <Select value={validity} onValueChange={setValidity}>
+              <Select value={validity} onValueChange={(v) => { setValidity(v); }}>
                 <SelectTrigger className="bg-muted/50"><SelectValue placeholder="Validity" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="30">30 Days</SelectItem>
                   <SelectItem value="90">90 Days</SelectItem>
+                  <SelectItem value="180">180 Days</SelectItem>
                   <SelectItem value="365">1 Year</SelectItem>
                   <SelectItem value="lifetime">Lifetime</SelectItem>
+                  <SelectItem value="custom">Custom Days</SelectItem>
                 </SelectContent>
               </Select>
             </div>

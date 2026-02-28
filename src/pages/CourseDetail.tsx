@@ -175,6 +175,7 @@ export default function CourseDetail() {
 
   const isEnrolled = !!enrollment;
 
+  if (loading) return <AppLayout><div className="p-4 text-center text-muted-foreground">Loading...</div></AppLayout>;
   if (!user) return <Navigate to="/auth" replace />;
   if (!course) return <AppLayout><div className="p-4 text-center text-muted-foreground">Loading...</div></AppLayout>;
 
