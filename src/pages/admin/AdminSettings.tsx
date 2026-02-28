@@ -75,6 +75,8 @@ export default function AdminSettings() {
       setWatermarkIntensity(settings.watermark_intensity || "medium");
       setWatermarkPosition(settings.watermark_position || "diagonal");
       setWatermarkCount(settings.watermark_count || "10");
+      setAdminContactEmail(settings.admin_contact_email || "mahastudypoint@gmail.com");
+      setAdminContactWhatsapp(settings.admin_contact_whatsapp || "");
     }
   }, [settings]);
 
