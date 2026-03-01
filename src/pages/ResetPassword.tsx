@@ -48,7 +48,7 @@ export default function ResetPassword() {
         <CardHeader><CardTitle className="text-xl font-display text-center">Set New Password</CardTitle></CardHeader>
         <CardContent>
           <form onSubmit={handleReset} className="space-y-4">
-            <Input type="password" placeholder="New Password (min 6 chars)" value={password} onChange={(e) => setPassword(e.target.value)} className="bg-muted/50 border-border/50" required minLength={6} />
+            <Input type="password" placeholder="New Password (min 8 chars)" value={password} onChange={(e) => setPassword(e.target.value)} className="bg-muted/50 border-border/50" required minLength={8} />
             <Button type="submit" className="w-full font-semibold" disabled={loading}>
               {loading ? "Updating..." : "Update Password"}
             </Button>
